@@ -2,17 +2,17 @@
 FROM rust:1-bookworm AS build
 WORKDIR /app
 
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src/
+ARG SERVICE_NAME
 
-COPY . .
-RUN cargo build --release --bin conduit
+COPY Cargo.toml Cargo.lock ./
+COPY services services/
+
+RUN cargo build --release --bin ${SERVICE_NAME}
 
 # Runtime image
 FROM debian:bookworm-slim
+
+ARG SERVICE_NAME
 
 RUN apt-get update && apt-get install -y --no-install-recommends \ 
     openssl ca-certificates && \
@@ -20,11 +20,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN groupadd --gid 1000 conduit && useradd --uid 1000 --gid 1000 conduit
 
-COPY --from=build /app/target/release/conduit /usr/local/bin/conduit
+COPY --from=build /app/target/release/${SERVICE_NAME} /usr/local/bin/service
 
 EXPOSE 8080
 
 WORKDIR /app
 USER conduit:conduit
 
-CMD ["/usr/local/bin/conduit"]
+CMD ["/usr/local/bin/service"]
