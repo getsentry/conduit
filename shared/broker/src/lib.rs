@@ -59,13 +59,16 @@ impl RedisClient {
         let conn = ConnectionManager::new(client).await?;
         Ok(Self { conn })
     }
+}
 
-    pub async fn ping(&self) -> Result<String> {
+#[async_trait]
+impl RedisOperations for RedisClient {
+    async fn ping(&self) -> Result<String> {
         let mut conn = self.conn.clone();
         conn.ping().await.map_err(Into::into)
     }
 
-    pub async fn publish(&self, key: &StreamKey, data: Vec<u8>) -> Result<String> {
+    async fn publish(&self, key: &StreamKey, data: Vec<u8>) -> Result<String> {
         let mut conn = self.conn.clone();
         let id: String = conn
             .xadd(key.as_redis_key(), "*", &[(STREAM_DATA_FIELD, data)])
@@ -73,7 +76,7 @@ impl RedisClient {
         Ok(id)
     }
 
-    pub async fn poll(
+    async fn poll(
         &self,
         key: &StreamKey,
         last_id: &str,
@@ -99,33 +102,9 @@ impl RedisClient {
         Ok(StreamEvents { events })
     }
 
-    pub async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool> {
+    async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool> {
         let mut conn = self.conn.clone();
         let res: bool = conn.expire(key.as_redis_key(), seconds).await?;
         Ok(res)
-    }
-}
-
-#[async_trait]
-impl RedisOperations for RedisClient {
-    async fn ping(&self) -> Result<String> {
-        self.ping().await
-    }
-
-    async fn publish(&self, key: &StreamKey, data: Vec<u8>) -> Result<String> {
-        self.publish(key, data).await
-    }
-
-    async fn poll(
-        &self,
-        key: &StreamKey,
-        last_id: &str,
-        opts: StreamReadOptions,
-    ) -> Result<StreamEvents> {
-        self.poll(key, last_id, opts).await
-    }
-
-    async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool> {
-        self.set_ttl(key, seconds).await
     }
 }
