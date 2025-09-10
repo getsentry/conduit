@@ -1,9 +1,18 @@
 use std::net::SocketAddr;
 
-use axum::{routing::{get, post}, Router};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use broker::RedisClient;
 use dotenvy::dotenv;
-use publish::{handlers::{health::{healthz_handler, readyz_handler}, publish::publish_handler}, state::AppState};
+use publish::{
+    handlers::{
+        health::{healthz_handler, readyz_handler},
+        publish::publish_handler,
+    },
+    state::AppState,
+};
 use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
 
 fn main() -> anyhow::Result<()> {

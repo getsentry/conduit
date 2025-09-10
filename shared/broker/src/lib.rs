@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
 use redis::streams::{StreamReadOptions, StreamReadReply};
-use redis::{from_redis_value, AsyncCommands};
+use redis::{AsyncCommands, from_redis_value};
 
 use mockall::automock;
 
@@ -39,7 +39,12 @@ type Result<T> = std::result::Result<T, Error>;
 pub trait RedisOperations: Send + Sync {
     async fn ping(&self) -> Result<String>;
     async fn publish(&self, key: &StreamKey, data: Vec<u8>) -> Result<String>;
-    async fn poll(&self, key: &StreamKey, last_id: &str, opts: StreamReadOptions) -> Result<StreamEvents>;
+    async fn poll(
+        &self,
+        key: &StreamKey,
+        last_id: &str,
+        opts: StreamReadOptions,
+    ) -> Result<StreamEvents>;
     async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool>;
 }
 
@@ -62,18 +67,29 @@ impl RedisClient {
 
     pub async fn publish(&self, key: &StreamKey, data: Vec<u8>) -> Result<String> {
         let mut conn = self.conn.clone();
-        let id: String = conn.xadd(key.as_redis_key(), "*", &[(STREAM_DATA_FIELD, data)]).await?;
+        let id: String = conn
+            .xadd(key.as_redis_key(), "*", &[(STREAM_DATA_FIELD, data)])
+            .await?;
         Ok(id)
     }
-    
-    pub async fn poll(&self, key: &StreamKey, last_id: &str, opts: StreamReadOptions) -> Result<StreamEvents> {
+
+    pub async fn poll(
+        &self,
+        key: &StreamKey,
+        last_id: &str,
+        opts: StreamReadOptions,
+    ) -> Result<StreamEvents> {
         let mut conn = self.conn.clone();
-        let reply: StreamReadReply = conn.xread_options(&[&key.as_redis_key()], &[last_id], &opts).await?;
-        let events = reply.keys
+        let reply: StreamReadReply = conn
+            .xread_options(&[&key.as_redis_key()], &[last_id], &opts)
+            .await?;
+        let events = reply
+            .keys
             .into_iter()
             .flat_map(|stream_key| stream_key.ids)
             .map(|stream_id| {
-                let data = stream_id.map
+                let data = stream_id
+                    .map
                     .get(STREAM_DATA_FIELD)
                     .and_then(|v| from_redis_value::<Vec<u8>>(v).ok())
                     .unwrap_or_default();
@@ -100,7 +116,12 @@ impl RedisOperations for RedisClient {
         self.publish(key, data).await
     }
 
-    async fn poll(&self, key: &StreamKey, last_id: &str, opts: StreamReadOptions) -> Result<StreamEvents> {
+    async fn poll(
+        &self,
+        key: &StreamKey,
+        last_id: &str,
+        opts: StreamReadOptions,
+    ) -> Result<StreamEvents> {
         self.poll(key, last_id, opts).await
     }
 
@@ -108,4 +129,3 @@ impl RedisOperations for RedisClient {
         self.set_ttl(key, seconds).await
     }
 }
-
