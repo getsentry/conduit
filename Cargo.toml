@@ -1,7 +1,8 @@
 [workspace]
 members = [
   "services/gateway",
-  "services/publish", "shared/broker",
+  "services/publish",
+  "shared/broker",
 ]
 resolver = "2"
 
