@@ -4,11 +4,13 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
+broker = { path = "../../shared/broker" }
 anyhow = { workspace = true }
 axum = { workspace = true }
 chrono = { workspace = true }
 dotenvy = { workspace = true }
 jsonwebtoken = { workspace = true }
+redis = { workspace = true }
 rsa = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
