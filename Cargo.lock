@@ -293,7 +293,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "broker",
  "dotenvy",
+ "redis",
  "serde",
  "tokio",
  "tower-http",

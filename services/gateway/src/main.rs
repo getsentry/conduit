@@ -1,8 +1,12 @@
 use std::net::SocketAddr;
 
 use axum::{Router, routing::get};
+use broker::RedisClient;
 use dotenvy::dotenv;
-use gateway::{handlers::health::healthz_handler, state::AppState};
+use gateway::{
+    handlers::health::{healthz_handler, readyz_handler},
+    state::AppState,
+};
 use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
 
 fn main() -> anyhow::Result<()> {
@@ -13,13 +17,18 @@ fn main() -> anyhow::Result<()> {
 
 async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let port = std::env::var("GATEWAY_PORT")?;
+    let redis_url = std::env::var("REDIS_URL")?;
+
+    let broker = RedisClient::new(redis_url.as_str()).await?;
 
     let state = AppState {
+        redis: broker,
         start_time: Instant::now(),
     };
 
     let mut app = Router::new()
         .route("/healthz", get(healthz_handler))
+        .route("/readyz", get(readyz_handler))
         .with_state(state);
 
     #[cfg(debug_assertions)]
