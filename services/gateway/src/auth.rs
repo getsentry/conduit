@@ -69,6 +69,9 @@ mod tests {
     use rsa::pkcs8::EncodePublicKey;
     use rsa::rand_core::OsRng;
     use rsa::{RsaPrivateKey, RsaPublicKey};
+    use std::sync::LazyLock;
+
+    static STANDARD_KEYS: LazyLock<(String, String)> = LazyLock::new(generate_test_keypair);
 
     fn generate_test_keypair() -> (String, String) {
         let mut rng = OsRng;
@@ -94,15 +97,15 @@ mod tests {
 
     #[test]
     fn test_valid_token() {
-        let (private_key, public_key) = generate_test_keypair();
+        let (private_key, public_key) = &*STANDARD_KEYS;
         let claims = Claims {
             org_id: "org123".to_string(),
             channel_id: "channel456".to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
-        let token = create_test_token(&claims, &private_key);
+        let token = create_test_token(&claims, private_key);
 
-        let result = validate_token(&token, "org123", "channel456", &public_key);
+        let result = validate_token(&token, "org123", "channel456", public_key);
         assert!(result.is_ok());
 
         let validated_claims = result.unwrap();
@@ -112,29 +115,29 @@ mod tests {
 
     #[test]
     fn test_expired_token() {
-        let (private_key, public_key) = generate_test_keypair();
+        let (private_key, public_key) = &*STANDARD_KEYS;
         let claims = Claims {
             org_id: "org123".to_string(),
             channel_id: "channel456".to_string(),
             exp: (Utc::now().timestamp() - 3600) as usize, // 1 hour ago
         };
-        let token = create_test_token(&claims, &private_key);
+        let token = create_test_token(&claims, private_key);
 
-        let result = validate_token(&token, "org123", "channel456", &public_key);
+        let result = validate_token(&token, "org123", "channel456", public_key);
         assert!(matches!(result, Err(TokenValidationError::TokenExpired)));
     }
 
     #[test]
     fn test_invalid_org_id() {
-        let (private_key, public_key) = generate_test_keypair();
+        let (private_key, public_key) = &*STANDARD_KEYS;
         let claims = Claims {
             org_id: "org123".to_string(),
             channel_id: "channel456".to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
-        let token = create_test_token(&claims, &private_key);
+        let token = create_test_token(&claims, private_key);
 
-        let result = validate_token(&token, "wrong_org", "channel456", &public_key);
+        let result = validate_token(&token, "wrong_org", "channel456", public_key);
         assert!(matches!(
             result,
             Err(TokenValidationError::OrgIdMismatch { expected, actual })
@@ -144,15 +147,15 @@ mod tests {
 
     #[test]
     fn test_invalid_channel_id() {
-        let (private_key, public_key) = generate_test_keypair();
+        let (private_key, public_key) = &*STANDARD_KEYS;
         let claims = Claims {
             org_id: "org123".to_string(),
             channel_id: "channel456".to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
-        let token = create_test_token(&claims, &private_key);
+        let token = create_test_token(&claims, private_key);
 
-        let result = validate_token(&token, "org123", "wrong_channel", &public_key);
+        let result = validate_token(&token, "org123", "wrong_channel", public_key);
         assert!(matches!(
             result,
             Err(TokenValidationError::ChannelIdMismatch { expected, actual })
@@ -162,9 +165,9 @@ mod tests {
 
     #[test]
     fn test_malformed_token() {
-        let (_, public_key) = generate_test_keypair();
+        let (_, public_key) = &*STANDARD_KEYS;
 
-        let result = validate_token("not.a.valid.token", "org123", "channel456", &public_key);
+        let result = validate_token("not.a.valid.token", "org123", "channel456", public_key);
         assert!(matches!(
             result,
             Err(TokenValidationError::OtherValidationError(_))
@@ -173,13 +176,13 @@ mod tests {
 
     #[test]
     fn test_invalid_public_key() {
-        let (private_key, _) = generate_test_keypair();
+        let (private_key, _) = &*STANDARD_KEYS;
         let claims = Claims {
             org_id: "org123".to_string(),
             channel_id: "channel456".to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
-        let token = create_test_token(&claims, &private_key);
+        let token = create_test_token(&claims, private_key);
 
         let result = validate_token(&token, "org123", "channel456", "invalid_key");
         assert!(matches!(
@@ -190,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_wrong_public_key() {
-        let (private_key1, _) = generate_test_keypair();
+        let (private_key1, _) = &*STANDARD_KEYS;
         let (_, public_key2) = generate_test_keypair();
 
         let claims = Claims {
@@ -198,7 +201,7 @@ mod tests {
             channel_id: "channel456".to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
-        let token = create_test_token(&claims, &private_key1);
+        let token = create_test_token(&claims, private_key1);
 
         let result = validate_token(&token, "org123", "channel456", &public_key2);
         assert!(matches!(
@@ -209,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_token_with_wrong_algorithm() {
-        let (_, public_key) = generate_test_keypair();
+        let (_, public_key) = &*STANDARD_KEYS;
 
         let claims = Claims {
             org_id: "org123".to_string(),
@@ -220,7 +223,7 @@ mod tests {
         let key = EncodingKey::from_secret("secret".as_ref());
         let token = encode(&Header::new(jsonwebtoken::Algorithm::HS256), &claims, &key).unwrap();
 
-        let result = validate_token(&token, "org123", "channel456", &public_key);
+        let result = validate_token(&token, "org123", "channel456", public_key);
         assert!(matches!(
             result,
             Err(TokenValidationError::OtherValidationError(_))
