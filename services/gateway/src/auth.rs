@@ -7,6 +7,8 @@ use uuid::Uuid;
 pub struct Claims {
     pub org_id: u64,
     pub channel_id: Uuid,
+    pub iss: String,
+    pub aud: String,
     pub exp: usize,
 }
 
@@ -33,8 +35,12 @@ pub fn validate_token(
     org_id: u64,
     channel_id: Uuid,
     rsa_public_key: &str,
+    expected_issuer: &str,
+    expected_audience: &str,
 ) -> Result<Claims, TokenValidationError> {
-    let validation = Validation::new(jsonwebtoken::Algorithm::RS256);
+    let mut validation = Validation::new(jsonwebtoken::Algorithm::RS256);
+    validation.set_issuer(&[expected_issuer]);
+    validation.set_audience(&[expected_audience]);
     let key = DecodingKey::from_rsa_pem(rsa_public_key.as_bytes())
         .map_err(|e| TokenValidationError::InvalidPublicKey(e.to_string()))?;
     let token_data = decode::<Claims>(token, &key, &validation).map_err(|e| match e.kind() {
@@ -101,14 +107,18 @@ mod tests {
         let (private_key, public_key) = &*STANDARD_KEYS;
         let org_id = 123;
         let channel_id = Uuid::new_v4();
+        let iss = "iss";
+        let aud = "aud";
         let claims = Claims {
             org_id,
             channel_id,
+            iss: iss.to_string(),
+            aud: aud.to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
 
-        let result = validate_token(&token, org_id, channel_id, public_key);
+        let result = validate_token(&token, org_id, channel_id, public_key, iss, aud);
         assert!(result.is_ok());
 
         let validated_claims = result.unwrap();
@@ -121,14 +131,18 @@ mod tests {
         let (private_key, public_key) = &*STANDARD_KEYS;
         let org_id = 123;
         let channel_id = Uuid::new_v4();
+        let iss = "iss";
+        let aud = "aud";
         let claims = Claims {
             org_id,
             channel_id,
+            iss: iss.to_string(),
+            aud: aud.to_string(),
             exp: (Utc::now().timestamp() - 3600) as usize, // 1 hour ago
         };
         let token = create_test_token(&claims, private_key);
 
-        let result = validate_token(&token, org_id, channel_id, public_key);
+        let result = validate_token(&token, org_id, channel_id, public_key, iss, aud);
         assert!(matches!(result, Err(TokenValidationError::TokenExpired)));
     }
 
@@ -138,14 +152,18 @@ mod tests {
         let org_id = 123;
         let wrong_org_id = 456;
         let channel_id = Uuid::new_v4();
+        let iss = "iss";
+        let aud = "aud";
         let claims = Claims {
             org_id,
             channel_id,
+            iss: iss.to_string(),
+            aud: aud.to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
 
-        let result = validate_token(&token, wrong_org_id, channel_id, public_key);
+        let result = validate_token(&token, wrong_org_id, channel_id, public_key, iss, aud);
         assert!(matches!(
             result,
             Err(TokenValidationError::OrgIdMismatch { expected, actual })
@@ -158,15 +176,19 @@ mod tests {
         let (private_key, public_key) = &*STANDARD_KEYS;
         let org_id = 123;
         let channel_id = Uuid::new_v4();
+        let iss = "iss";
+        let aud = "aud";
         let claims = Claims {
             org_id,
             channel_id,
+            iss: iss.to_string(),
+            aud: aud.to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
 
         let wrong_channel = Uuid::new_v4();
-        let result = validate_token(&token, org_id, wrong_channel, public_key);
+        let result = validate_token(&token, org_id, wrong_channel, public_key, iss, aud);
         assert!(matches!(
             result,
             Err(TokenValidationError::ChannelIdMismatch { expected, actual })
@@ -178,7 +200,14 @@ mod tests {
     fn test_malformed_token() {
         let (_, public_key) = &*STANDARD_KEYS;
 
-        let result = validate_token("not.a.valid.token", 123, Uuid::new_v4(), public_key);
+        let result = validate_token(
+            "not.a.valid.token",
+            123,
+            Uuid::new_v4(),
+            public_key,
+            "iss",
+            "aud",
+        );
         assert!(matches!(
             result,
             Err(TokenValidationError::OtherValidationError(_))
@@ -190,17 +219,65 @@ mod tests {
         let (private_key, _) = &*STANDARD_KEYS;
         let org_id = 123;
         let channel_id = Uuid::new_v4();
+        let iss = "iss";
+        let aud = "aud";
         let claims = Claims {
             org_id,
             channel_id,
+            iss: iss.to_string(),
+            aud: aud.to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
 
-        let result = validate_token(&token, org_id, channel_id, "invalid_key");
+        let result = validate_token(&token, org_id, channel_id, "invalid_key", iss, aud);
         assert!(matches!(
             result,
             Err(TokenValidationError::InvalidPublicKey(_))
+        ));
+    }
+
+    #[test]
+    fn test_invalid_issuer() {
+        let (private_key, public_key) = &*STANDARD_KEYS;
+        let org_id = 123;
+        let channel_id = Uuid::new_v4();
+        let iss = "iss";
+        let aud = "aud";
+        let claims = Claims {
+            org_id,
+            channel_id,
+            iss: iss.to_string(),
+            aud: aud.to_string(),
+            exp: (Utc::now().timestamp() + 3600) as usize,
+        };
+        let token = create_test_token(&claims, private_key);
+        let result = validate_token(&token, org_id, channel_id, &public_key, "invalid_iss", aud);
+        assert!(matches!(
+            result,
+            Err(TokenValidationError::OtherValidationError(_))
+        ));
+    }
+
+    #[test]
+    fn test_invalid_audience() {
+        let (private_key, public_key) = &*STANDARD_KEYS;
+        let org_id = 123;
+        let channel_id = Uuid::new_v4();
+        let iss = "iss";
+        let aud = "aud";
+        let claims = Claims {
+            org_id,
+            channel_id,
+            iss: iss.to_string(),
+            aud: aud.to_string(),
+            exp: (Utc::now().timestamp() + 3600) as usize,
+        };
+        let token = create_test_token(&claims, private_key);
+        let result = validate_token(&token, org_id, channel_id, &public_key, iss, "invalid_aud");
+        assert!(matches!(
+            result,
+            Err(TokenValidationError::OtherValidationError(_))
         ));
     }
 
@@ -211,14 +288,18 @@ mod tests {
 
         let org_id = 123;
         let channel_id = Uuid::new_v4();
+        let iss = "iss";
+        let aud = "aud";
         let claims = Claims {
             org_id,
             channel_id,
+            iss: iss.to_string(),
+            aud: aud.to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key1);
 
-        let result = validate_token(&token, org_id, channel_id, &public_key2);
+        let result = validate_token(&token, org_id, channel_id, &public_key2, iss, aud);
         assert!(matches!(
             result,
             Err(TokenValidationError::OtherValidationError(_))
@@ -231,16 +312,20 @@ mod tests {
 
         let org_id = 123;
         let channel_id = Uuid::new_v4();
+        let iss = "iss";
+        let aud = "aud";
         let claims = Claims {
             org_id,
             channel_id,
+            iss: iss.to_string(),
+            aud: aud.to_string(),
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
 
         let key = EncodingKey::from_secret("secret".as_ref());
         let token = encode(&Header::new(jsonwebtoken::Algorithm::HS256), &claims, &key).unwrap();
 
-        let result = validate_token(&token, org_id, channel_id, public_key);
+        let result = validate_token(&token, org_id, channel_id, public_key, iss, aud);
         assert!(matches!(
             result,
             Err(TokenValidationError::OtherValidationError(_))
