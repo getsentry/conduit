@@ -252,7 +252,7 @@ mod tests {
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
-        let result = validate_token(&token, org_id, channel_id, &public_key, "invalid_iss", aud);
+        let result = validate_token(&token, org_id, channel_id, public_key, "invalid_iss", aud);
         assert!(matches!(
             result,
             Err(TokenValidationError::OtherValidationError(_))
@@ -274,7 +274,7 @@ mod tests {
             exp: (Utc::now().timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
-        let result = validate_token(&token, org_id, channel_id, &public_key, iss, "invalid_aud");
+        let result = validate_token(&token, org_id, channel_id, public_key, iss, "invalid_aud");
         assert!(matches!(
             result,
             Err(TokenValidationError::OtherValidationError(_))
