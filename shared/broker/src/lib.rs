@@ -43,7 +43,7 @@ pub trait RedisOperations: Send + Sync {
         &self,
         key: &StreamKey,
         last_id: &str,
-        opts: StreamReadOptions,
+        opts: &StreamReadOptions,
     ) -> Result<StreamEvents>;
     async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool>;
 }
@@ -80,11 +80,11 @@ impl RedisOperations for RedisClient {
         &self,
         key: &StreamKey,
         last_id: &str,
-        opts: StreamReadOptions,
+        opts: &StreamReadOptions,
     ) -> Result<StreamEvents> {
         let mut conn = self.conn.clone();
         let reply: StreamReadReply = conn
-            .xread_options(&[&key.as_redis_key()], &[last_id], &opts)
+            .xread_options(&[&key.as_redis_key()], &[last_id], opts)
             .await?;
         let events = reply
             .keys
