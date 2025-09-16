@@ -9,6 +9,9 @@ on:
 env:
     RUSTFLAGS: -Dwarnings
 
+permissions:
+  contents: read
+
 jobs:
     lint:
         name: Lint
