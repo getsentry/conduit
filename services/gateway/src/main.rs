@@ -4,8 +4,11 @@ use axum::{Router, routing::get};
 use broker::RedisClient;
 use dotenvy::dotenv;
 use gateway::{
-    handlers::health::{healthz_handler, readyz_handler},
-    state::AppState,
+    handlers::{
+        health::{healthz_handler, readyz_handler},
+        sse::sse_handler,
+    },
+    state::{AppState, JwtConfig},
 };
 use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
 
@@ -21,14 +24,18 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
 
     let broker = RedisClient::new(redis_url.as_str()).await?;
 
+    let jwt_config = JwtConfig::from_env()?;
+
     let state = AppState {
         redis: broker,
         start_time: Instant::now(),
+        jwt_config,
     };
 
     let mut app = Router::new()
         .route("/healthz", get(healthz_handler))
         .route("/readyz", get(readyz_handler))
+        .route("/events/{org_id}", get(sse_handler))
         .with_state(state);
 
     #[cfg(debug_assertions)]
