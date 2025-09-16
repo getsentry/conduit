@@ -18,7 +18,7 @@ enum Status {
 
 #[derive(Serialize)]
 pub struct HealthResponse {
-    status: String,
+    status: Status,
     uptime: u64,
 }
 
@@ -29,7 +29,7 @@ pub async fn healthz_handler(
     (
         StatusCode::OK,
         Json(HealthResponse {
-            status: "ok".to_string(),
+            status: Status::Ok,
             uptime,
         }),
     )
@@ -88,7 +88,7 @@ mod tests {
         let (status, response) = healthz_handler(State(state)).await;
 
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(response.status, "ok");
+        assert_eq!(response.status, Status::Ok);
     }
 
     #[tokio::test]
