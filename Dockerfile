@@ -6,6 +6,7 @@ ARG SERVICE_NAME
 
 COPY Cargo.toml Cargo.lock ./
 COPY services services/
+COPY shared shared/
 
 RUN cargo build --release --bin ${SERVICE_NAME}
 
