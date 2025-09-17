@@ -1,48 +1,48 @@
 name: CI
 
 on:
-    push:
-        branches:
-            - main
-    pull_request:
+  push:
+    branches:
+      - main
+  pull_request:
 
 env:
-    RUSTFLAGS: -Dwarnings
+  RUSTFLAGS: -Dwarnings
 
 permissions:
   contents: read
 
 jobs:
-    lint:
-        name: Lint
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-            - name: Install Rust Toolchain
-              run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt --no-self-update
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt --no-self-update
 
-            - uses: swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+      - uses: swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
 
-            - name: Run Rustfmt
-              run: cargo fmt --all -- --check
+      - name: Run Rustfmt
+        run: cargo fmt --all -- --check
 
-            - name: Run Clippy
-              run: cargo clippy --workspace --all-features --tests -- -D clippy::all
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-features --tests -- -D clippy::all
 
-    test:
-        name: Test (ubuntu)
-        runs-on: ubuntu-latest
+  test:
+    name: Test (ubuntu)
+    runs-on: ubuntu-latest
 
-        steps:
-            - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-            - name: Install Rust Toolchain
-              run: rustup toolchain install stable --profile minimal --no-self-update
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
 
-            - uses: swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
-              with:
-                key: ${{ github.job }}
-            
-            - name: Run tests
-              run: cargo test
+      - uses: swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          key: ${{ github.job }}
+
+      - name: Run tests
+        run: cargo test
