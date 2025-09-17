@@ -24,6 +24,12 @@ x-programs:
 services:
   gateway:
     image: ghcr.io/getsentry/conduit-gateway:latest
+    environment:
+      GATEWAY_PORT: ${GATEWAY_PORT:-8000}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      JWT_ISSUER: ${JWT_ISSUER:-}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
     ports:
       - 127.0.0.1:8000:8000
     networks:
@@ -34,6 +40,9 @@ services:
     platform: linux/amd64
   publish:
     image: ghcr.io/getsentry/conduit-publish:latest
+    environment:
+      PUBLISH_PORT: ${PUBLISH_PORT:-8001}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     ports:
       - 127.0.0.1:8001:8001
     networks:
