@@ -13,10 +13,10 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
         service: [gateway, publish]
         include:
-        - os: ubuntu-24.04
-          platform: amd64
-        - os: ubuntu-24.04-arm
-          platform: arm64
+          - os: ubuntu-24.04
+            platform: amd64
+          - os: ubuntu-24.04-arm
+            platform: arm64
     name: build-${{ matrix.service }}-${{ matrix.platform }}
     permissions:
       contents: read
@@ -27,9 +27,9 @@ jobs:
       - name: Build and push image
         uses: getsentry/action-build-and-push-images@f6e4a98f7ed028edcfb1159f3a2905b30e51f1fd
         with:
-          image_name: 'conduit-${{ matrix.service }}'
+          image_name: "conduit-${{ matrix.service }}"
           platforms: linux/${{ matrix.platform }}
-          dockerfile_path: './Dockerfile'
+          dockerfile_path: "./Dockerfile"
           build_args: SERVICE_NAME=${{ matrix.service }}
           ghcr: true
           tag_suffix: -${{ matrix.platform }}
@@ -65,9 +65,9 @@ jobs:
 
       - name: Create multiplatform multiplatform manifest for publish
         run: |
-            docker buildx imagetools create \
-            --tag ghcr.io/getsentry/conduit-publish:${{ github.event.pull_request.head.sha || github.sha }} \
-            --tag ghcr.io/getsentry/conduit-publish:nightly \
-            --tag ghcr.io/getsentry/conduit-publish:latest \
-            ghcr.io/getsentry/conduit-publish:${{ github.event.pull_request.head.sha || github.sha }}-amd64 \
-            ghcr.io/getsentry/conduit-publish:${{ github.event.pull_request.head.sha || github.sha }}-arm64
+          docker buildx imagetools create \
+          --tag ghcr.io/getsentry/conduit-publish:${{ github.event.pull_request.head.sha || github.sha }} \
+          --tag ghcr.io/getsentry/conduit-publish:nightly \
+          --tag ghcr.io/getsentry/conduit-publish:latest \
+          ghcr.io/getsentry/conduit-publish:${{ github.event.pull_request.head.sha || github.sha }}-amd64 \
+          ghcr.io/getsentry/conduit-publish:${{ github.event.pull_request.head.sha || github.sha }}-arm64
