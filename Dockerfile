@@ -12,7 +12,7 @@ COPY shared shared/
 RUN cargo build --release --bin ${SERVICE_NAME}
 
 # Runtime image
-FROM gcr.io/distroless/cc-debian12:nonroot as runtime
+FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
 
 ARG SERVICE_NAME
 
