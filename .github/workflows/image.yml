@@ -1,0 +1,39 @@
+name: Image Build
+on:
+    pull_request:
+    push:
+      branches:
+        - main
+        - release/**
+  jobs:
+    build:
+      runs-on: ${{ matrix.os }}
+      strategy:
+        matrix:
+          os: [ubuntu-24.04, ubuntu-24.04-arm]
+          service: [gateway, publish]
+          include:
+            - os: ubuntu-24.04
+              platform: amd64
+            - os: ubuntu-24.04-arm
+              platform: arm64
+      name: build-${{ matrix.service }}-${{ matrix.platform }}
+      permissions:
+        contents: read
+        packages: write
+      steps:
+        - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+        - name: Build and push image
+          uses: getsentry/action-build-and-push-images@0a2c1207d9c733c838e443c35a4174a738977bd1
+          with:
+            image_name: 'conduit-${{ matrix.service }}'
+            platforms: linux/${{ matrix.platform }}
+            dockerfile_path: './Dockerfile'
+            build_args: SERVICE_NAME=${{ matrix.service }}
+            ghcr: true
+            tag_suffix: -${{ matrix.platform }}
+            publish_on_pr: true
+            google_ar: false
+            tag_nightly: false
+            tag_latest: false
