@@ -1,0 +1,58 @@
+# Ignored by docker compose, used by devservices
+x-sentry-service-config:
+  version: 0.1
+  service_name: conduit
+  dependencies:
+    redis:
+      description: Shared instance of redis used by sentry services
+      remote:
+        repo_name: sentry-shared-redis
+        branch: main
+        repo_link: https://github.com/getsentry/sentry-shared-redis
+    gateway:
+      description: Conduit gateway service
+    publish:
+      description: Conduit publish service
+  modes:
+    default: [redis]
+    containerized: [redis, gateway, publish]
+
+x-programs:
+  devserver:
+    command: cargo run --bin gateway && cargo run --bin publish
+
+services:
+  gateway:
+    image: ghcr.io/getsentry/conduit-gateway:latest
+    environment:
+      GATEWAY_PORT: ${GATEWAY_PORT:-8000}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      JWT_ISSUER: ${JWT_ISSUER:-}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
+    ports:
+      - 127.0.0.1:8000:8000
+    networks:
+      - devservices
+    labels:
+      - orchestrator=devservices
+    restart: unless-stopped
+    platform: linux/amd64
+  publish:
+    image: ghcr.io/getsentry/conduit-publish:latest
+    environment:
+      PUBLISH_PORT: ${PUBLISH_PORT:-8001}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+    ports:
+      - 127.0.0.1:8001:8001
+    networks:
+      - devservices
+    labels:
+      - orchestrator=devservices
+    restart: unless-stopped
+    platform: linux/amd64
+
+networks:
+  devservices:
+    name: devservices
+    external: true
