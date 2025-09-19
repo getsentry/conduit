@@ -4,16 +4,17 @@ use redis::streams::{StreamReadOptions, StreamReadReply};
 use redis::{AsyncCommands, from_redis_value};
 
 use mockall::automock;
+use uuid::Uuid;
 
 const STREAM_DATA_FIELD: &str = "data";
 
 pub struct StreamKey {
-    org_id: String,
-    channel_id: String,
+    org_id: u64,
+    channel_id: Uuid,
 }
 
 impl StreamKey {
-    pub fn new(org_id: String, channel_id: String) -> Self {
+    pub fn new(org_id: u64, channel_id: Uuid) -> Self {
         Self { org_id, channel_id }
     }
 

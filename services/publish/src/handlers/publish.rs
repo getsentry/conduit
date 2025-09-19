@@ -7,13 +7,14 @@ use broker::{RedisOperations, StreamKey};
 use prost::Message;
 
 use sentry_protos::conduit::v1alpha::PublishRequest;
+use uuid::Uuid;
 
 use crate::state::AppState;
 
 async fn do_publish<R: RedisOperations>(
     redis: &R,
-    org_id: String,
-    channel_id: String,
+    org_id: u64,
+    channel_id: Uuid,
     body: Bytes,
 ) -> Result<String, (StatusCode, String)> {
     let _stream_event = PublishRequest::decode(body.clone())
@@ -36,7 +37,7 @@ async fn do_publish<R: RedisOperations>(
 
 pub async fn publish_handler(
     State(state): State<AppState>,
-    Path((org_id, channel_id)): Path<(String, String)>,
+    Path((org_id, channel_id)): Path<(u64, Uuid)>,
     body: Bytes,
 ) -> Result<String, (StatusCode, String)> {
     do_publish(&state.redis, org_id, channel_id, body).await
@@ -52,20 +53,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_publish_success() {
+        let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
 
         mock_redis
             .expect_publish()
             .with(
-                function(|key: &StreamKey| key.as_redis_key() == "stream:org123:channel456"),
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
                 always(),
             )
             .times(1)
             .returning(|_, _| Ok("stream-id-123".to_string()));
 
         let request = PublishRequest {
-            channel_id: "channel456".to_string(),
-            message_id: "abc123".to_string(),
+            channel_id: channel_id.to_string(),
+            message_id: Uuid::new_v4().to_string(),
             client_timestamp: Some(Timestamp {
                 seconds: 1736467200,
                 nanos: 0,
@@ -78,13 +82,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(
-            &mock_redis,
-            "org123".to_string(),
-            "channel456".to_string(),
-            body,
-        )
-        .await;
+        let result = do_publish(&mock_redis, 123, channel_id, body).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "stream-id-123");
@@ -96,13 +94,7 @@ mod tests {
 
         let body = Bytes::from(vec![255, 255, 255, 255]);
 
-        let result = do_publish(
-            &mock_redis,
-            "org123".to_string(),
-            "channel456".to_string(),
-            body,
-        )
-        .await;
+        let result = do_publish(&mock_redis, 123, Uuid::new_v4(), body).await;
 
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();
@@ -112,6 +104,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_publish_redis_error() {
+        let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
 
         mock_redis.expect_publish().returning(|_, _| {
@@ -122,8 +115,8 @@ mod tests {
         });
 
         let request = PublishRequest {
-            channel_id: "channel456".to_string(),
-            message_id: "abc123".to_string(),
+            channel_id: channel_id.to_string(),
+            message_id: Uuid::new_v4().to_string(),
             client_timestamp: Some(Timestamp {
                 seconds: 1736467200,
                 nanos: 0,
@@ -136,13 +129,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(
-            &mock_redis,
-            "org123".to_string(),
-            "channel456".to_string(),
-            body,
-        )
-        .await;
+        let result = do_publish(&mock_redis, 123, channel_id, body).await;
 
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();

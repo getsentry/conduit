@@ -193,6 +193,7 @@ dependencies = [
  "mockall",
  "redis",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -1209,6 +1210,7 @@ dependencies = [
  "serde",
  "tokio",
  "tower-http",
+ "uuid",
 ]
 
 [[package]]
