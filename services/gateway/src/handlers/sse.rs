@@ -74,7 +74,7 @@ pub fn create_event_stream<R: RedisOperations>(
     org_id: u64,
     channel_id: Uuid,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
-    let stream_key = StreamKey::new(org_id.to_string(), channel_id.to_string());
+    let stream_key = StreamKey::new(org_id, channel_id);
     let stream_read_opts = StreamReadOptions::default()
         .block(STREAM_BLOCK_MS)
         .count(STREAM_MAX_EVENTS);

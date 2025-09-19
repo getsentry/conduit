@@ -8,3 +8,4 @@ async-trait = { workspace = true }
 mockall = { workspace = true }
 redis = { workspace = true }
 thiserror = { workspace = true }
+uuid = { workspace = true }
