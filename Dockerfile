@@ -31,7 +31,7 @@ EXPOSE 8080
 CMD ["/app/service"]
 
 # Runtime image
-FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
+FROM gcr.io/distroless/cc-debian12:nonroot AS prod 
 
 ARG SERVICE_NAME
 
