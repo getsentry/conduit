@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
-use redis::streams::{StreamReadOptions, StreamReadReply};
+use redis::streams::{StreamMaxlen, StreamReadOptions, StreamReadReply};
 use redis::{AsyncCommands, from_redis_value};
 
 use mockall::automock;
@@ -47,6 +47,7 @@ pub trait RedisOperations: Send + Sync {
         opts: &StreamReadOptions,
     ) -> Result<StreamEvents>;
     async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool>;
+    async fn trim_stream(&self, key: &StreamKey, max_len: usize) -> Result<i64>;
 }
 
 #[derive(Clone)]
@@ -107,5 +108,13 @@ impl RedisOperations for RedisClient {
         let mut conn = self.conn.clone();
         let res: bool = conn.expire(key.as_redis_key(), seconds).await?;
         Ok(res)
+    }
+
+    async fn trim_stream(&self, key: &StreamKey, max_len: usize) -> Result<i64> {
+        let mut conn = self.conn.clone();
+        let trimmed: i64 = conn
+            .xtrim(key.as_redis_key(), StreamMaxlen::Approx(max_len))
+            .await?;
+        Ok(trimmed)
     }
 }
