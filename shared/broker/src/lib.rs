@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 const STREAM_DATA_FIELD: &str = "data";
 
-#[derive(Clone)]
 pub struct StreamKey {
     org_id: u64,
     channel_id: Uuid,
