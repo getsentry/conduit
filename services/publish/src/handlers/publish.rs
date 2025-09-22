@@ -40,11 +40,11 @@ async fn do_publish<R: RedisOperations>(
         eprintln!("Failed to trim stream after publish: {}", e);
     }
 
-    if matches!(stream_event.phase(), Phase::End) {
-        if let Err(e) = redis.set_ttl(&stream_key, STREAM_TTL_SEC).await {
-            // TODO: Add proper error handling
-            eprintln!("Failed to set TTL for stream {}", e);
-        }
+    if matches!(stream_event.phase(), Phase::End)
+        && let Err(e) = redis.set_ttl(&stream_key, STREAM_TTL_SEC).await
+    {
+        // TODO: Add proper error handling
+        eprintln!("Failed to set TTL for stream {}", e);
     }
 
     Ok(id)
