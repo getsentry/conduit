@@ -64,8 +64,6 @@ jobs:
           # prod manifests
           docker buildx imagetools create \
             --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }} \
-            --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-amd64 \
-            --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-arm64 \
             --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:nightly \
             --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:latest \
             ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-amd64 \
@@ -74,8 +72,6 @@ jobs:
           # Dev manifests
           docker buildx imagetools create \
             --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-dev \
-            --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-amd64-dev \
-            --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-arm64-dev \
             --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:dev \
             ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-amd64-dev \
             ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-arm64-dev
