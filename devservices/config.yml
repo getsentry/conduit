@@ -54,7 +54,7 @@ services:
     labels:
       - orchestrator=devservices
     healthcheck:
-      test: curl -f http://127.0.0.1:8000/healthz
+      test: curl -f http://127.0.0.1:8001/healthz
       interval: 5s
       timeout: 5s
       retries: 3
