@@ -34,7 +34,7 @@ jobs:
           build_args: SERVICE_NAME=${{ matrix.service }}
           build_target: ${{ matrix.target }}
           ghcr: true
-          tag_suffix: -${{ matrix.platform }}${{ matrix.target == 'prod' && '' || '-dev' }}
+          tag_suffix: -${{ matrix.platform }}${{ matrix.target != 'prod' && '-dev' || '' }}
           google_ar: false
           tag_nightly: false
           tag_latest: false
