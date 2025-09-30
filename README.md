@@ -27,9 +27,9 @@ style GW fill:#81c784
 style C fill:#e1f5fe
 ```
 
-### Usage Examples
+## Usage Examples
 
-#### Publishing a Stream
+### Publishing a Stream
 
 This example shows how to publish a multi-part stream using the phase system:
 
