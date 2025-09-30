@@ -56,7 +56,7 @@ PublishRequest {
   phase: DELTA
   sequence: 2
   payload: {
-    "value": "hello",
+    "value": "hello,",
   }
 }
 ```
@@ -71,7 +71,7 @@ PublishRequest {
   phase: DELTA
   sequence: 3
   payload: {
-    "value": ", world",
+    "value": " world!",
   }
 }
 ```
