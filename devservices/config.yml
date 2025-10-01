@@ -23,7 +23,7 @@ x-programs:
 
 services:
   gateway:
-    image: ghcr.io/getsentry/conduit-gateway:latest
+    image: ghcr.io/getsentry/conduit-gateway:dev
     environment:
       GATEWAY_PORT: ${GATEWAY_PORT:-8000}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
@@ -36,10 +36,14 @@ services:
       - devservices
     labels:
       - orchestrator=devservices
+    healthcheck:
+      test: curl -f http://127.0.0.1:8000/healthz
+      interval: 5s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
-    platform: linux/amd64
   publish:
-    image: ghcr.io/getsentry/conduit-publish:latest
+    image: ghcr.io/getsentry/conduit-publish:dev
     environment:
       PUBLISH_PORT: ${PUBLISH_PORT:-8001}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
@@ -49,8 +53,12 @@ services:
       - devservices
     labels:
       - orchestrator=devservices
+    healthcheck:
+      test: curl -f http://127.0.0.1:8001/healthz
+      interval: 5s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
-    platform: linux/amd64
 
 networks:
   devservices:
