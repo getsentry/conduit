@@ -15,7 +15,7 @@ Conduit is built as a Rust workspace consisting of multiple services that work t
 ```mermaid
 graph LR
     P[Publisher] --> |POST /publish| PS[Publish<br/>Service]
-    PS --> |XADD| R[(Redis<br/>Streams)]
+    PS --> |XADD| R[("Broker<br/>(Redis Streams)")]
     R --> |XREAD| GW[Gateway<br/>Service]
     C[Client<br/>Browser] -.-> |GET /events| GW
     GW ==> |SSE| C[Client<br/>Browser]
