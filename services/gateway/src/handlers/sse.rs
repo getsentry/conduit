@@ -2,6 +2,7 @@ use prost::Message;
 use prost_types::value::Kind;
 use serde_json::json;
 use std::{sync::Arc, time::Duration};
+use tracing::instrument;
 
 use axum::{
     extract::{Path, Query, State},
@@ -173,6 +174,7 @@ pub struct SSEQuery {
     token: String,
 }
 
+#[instrument(skip_all, fields(org_id = %org_id, channel_id = %q.channel_id))]
 pub async fn sse_handler(
     State(state): State<AppState>,
     Path(org_id): Path<u64>,
