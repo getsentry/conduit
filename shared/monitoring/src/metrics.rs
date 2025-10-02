@@ -15,8 +15,8 @@ impl MetricsConfig {
     ) -> Self {
         MetricsConfig {
             service_name: service_name.to_string(),
-            statsd_addr: statsd_addr,
-            default_tags: default_tags,
+            statsd_addr,
+            default_tags,
         }
     }
 }
