@@ -109,8 +109,8 @@ pub fn create_event_stream<R: RedisOperations>(
             for (event_id, event_data) in stream_events.events {
                 let publish_request: PublishRequest = match PublishRequest::decode(&*event_data) {
                     Ok(pr) => pr,
-                    Err(e) => {
-                        eprintln!("Failed to decode protobuf for event {}: {}", event_id, e);
+                    Err(_) => {
+                        tracing::error!("Failed to decode protobuf for event {}", event_id);
                         last_id = event_id;
                         continue;
                     }
@@ -119,7 +119,7 @@ pub fn create_event_stream<R: RedisOperations>(
                 let message_id = match Uuid::parse_str(&publish_request.message_id) {
                     Ok(id) => id,
                     Err(_) => {
-                        eprintln!("Invalid message_id UUID: {}", publish_request.message_id);
+                        tracing::error!("Invalid message_id UUID {}", publish_request.message_id);
                         last_id = event_id;
                         continue;
                     }
@@ -128,7 +128,7 @@ pub fn create_event_stream<R: RedisOperations>(
                 let channel_id = match Uuid::parse_str(&publish_request.channel_id) {
                     Ok(id) => id,
                     Err(_) => {
-                        eprintln!("Invalid channel_id UUID: {}", publish_request.channel_id);
+                        tracing::error!("Invalid channel_id UUID {}", publish_request.channel_id);
                         last_id = event_id;
                         continue;
                     }
@@ -145,8 +145,8 @@ pub fn create_event_stream<R: RedisOperations>(
 
                 let sse_event_json = match serde_json::to_string(&sse_event) {
                     Ok(j) => j,
-                    Err(e) => {
-                        eprintln!("Failed to serialize SSE Event {}", e);
+                    Err(_) => {
+                        tracing::error!("Failed to serialize SSE event");
                         continue;
                     }
                 };
