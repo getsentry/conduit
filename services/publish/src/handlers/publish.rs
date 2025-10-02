@@ -7,6 +7,7 @@ use broker::{RedisOperations, StreamKey};
 use prost::Message;
 
 use sentry_protos::conduit::v1alpha::{Phase, PublishRequest};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -36,20 +37,19 @@ async fn do_publish<R: RedisOperations>(
         })?;
 
     if let Err(e) = redis.trim_stream(&stream_key, MAX_STREAM_LEN).await {
-        // TODO: Add proper error monitoring
-        eprintln!("Failed to trim stream after publish: {}", e);
+        tracing::error!(error = %e, "Failed to trim");
     }
 
     if matches!(stream_event.phase(), Phase::End)
         && let Err(e) = redis.set_ttl(&stream_key, STREAM_TTL_SEC).await
     {
-        // TODO: Add proper error handling
-        eprintln!("Failed to set TTL for stream {}", e);
+        tracing::error!(error = %e, "Failed to set TTL");
     }
 
     Ok(id)
 }
 
+#[instrument(skip_all, fields(org_id = %org_id, channel_id = %channel_id))]
 pub async fn publish_handler(
     State(state): State<AppState>,
     Path((org_id, channel_id)): Path<(u64, Uuid)>,

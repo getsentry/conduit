@@ -1,0 +1,100 @@
+use sentry::{integrations::tracing::EventFilter, types::Dsn};
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::str::FromStr;
+use tracing_subscriber::Layer;
+use tracing_subscriber::filter::EnvFilter;
+use tracing_subscriber::prelude::*;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogFormat {
+    /// JSON structured logging for k8s
+    Json,
+
+    /// Text formatted logging for local dev
+    Text,
+}
+
+#[derive(Debug)]
+pub struct LoggingConfig {
+    /// The sentry DSN to use for error reporting.
+    pub sentry_dsn: Option<String>,
+
+    /// The environment to report to sentry errors to.
+    pub sentry_env: Option<Cow<'static, str>>,
+
+    /// The tracing sample rate
+    pub traces_sample_rate: f32,
+
+    /// The log level to filter logging to.
+    pub log_filter: String,
+
+    /// The log format to use
+    pub log_format: LogFormat,
+}
+
+impl LoggingConfig {
+    pub fn new(
+        sentry_dsn: Option<String>,
+        environment: String,
+        traces_sample_rate: f32,
+        log_filter: String,
+        log_format: LogFormat,
+    ) -> Self {
+        LoggingConfig {
+            sentry_dsn,
+            sentry_env: Some(Cow::Owned(environment)),
+            traces_sample_rate,
+            log_filter,
+            log_format,
+        }
+    }
+}
+
+/// Setup sentry-sdk and logging/tracing
+pub fn init(log_config: LoggingConfig) {
+    if let Some(dsn) = &log_config.sentry_dsn {
+        let dsn = Some(Dsn::from_str(dsn).expect("Invalid Sentry DSN"));
+        let guard = sentry::init(sentry::ClientOptions {
+            dsn,
+            // TODO: Add releases
+            environment: log_config.sentry_env.clone(),
+            traces_sample_rate: log_config.traces_sample_rate,
+            enable_logs: true,
+            ..Default::default()
+        });
+
+        std::mem::forget(guard);
+    }
+
+    let subscriber = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
+        .with_target(true);
+
+    let formatter = match log_config.log_format {
+        LogFormat::Json => subscriber
+            .json()
+            .flatten_event(true)
+            .with_current_span(true)
+            .with_span_list(true)
+            .with_file(true)
+            .with_line_number(true)
+            .boxed(),
+        LogFormat::Text => subscriber.compact().boxed(),
+    };
+
+    // Same as the default filter, except it sends everything at or above INFO as logs instead of breadcrumbs.
+    let sentry_layer =
+        sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
+            tracing::Level::ERROR => EventFilter::Event | EventFilter::Log,
+            tracing::Level::WARN | tracing::Level::INFO => EventFilter::Log,
+            tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
+        });
+
+    let logs_subscriber = tracing_subscriber::registry()
+        .with(formatter.with_filter(EnvFilter::new(log_config.log_filter)))
+        .with(sentry_layer);
+
+    logs_subscriber.init();
+}

@@ -4,6 +4,7 @@ use axum::{Json, extract::State, http::StatusCode};
 use broker::RedisOperations;
 use serde::Serialize;
 use tokio::time::timeout;
+use tracing::instrument;
 
 use crate::state::{AppState, HealthState};
 
@@ -22,6 +23,7 @@ pub struct HealthResponse {
     uptime: u64,
 }
 
+#[instrument(skip_all)]
 pub async fn healthz_handler(
     State(state): State<HealthState>,
 ) -> (StatusCode, Json<HealthResponse>) {
@@ -61,6 +63,7 @@ async fn check_readiness<R: RedisOperations>(redis: &R) -> ReadyResponse {
     }
 }
 
+#[instrument(skip_all)]
 pub async fn readyz_handler(State(state): State<AppState>) -> (StatusCode, Json<ReadyResponse>) {
     let response = check_readiness(&state.redis).await;
     let status_code = match response.status {
