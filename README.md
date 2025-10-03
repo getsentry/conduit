@@ -117,7 +117,7 @@ PublishRequest {
 
 ### Consuming a Stream
 
-Clients connect to the Gateway service at `GET /events/{org_id}/{channel_id}` and receive Server-Sent Events:
+Clients connect to the Gateway service at `GET /events/{org_id}?token=...&channel_id=...` and receive Server-Sent Events:
 
 ```json
 event: stream
