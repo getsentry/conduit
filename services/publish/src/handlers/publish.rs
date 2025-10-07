@@ -1,7 +1,7 @@
 use axum::{
     body::Bytes,
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
 };
 use broker::{RedisOperations, StreamKey};
 use prost::Message;
@@ -10,7 +10,10 @@ use sentry_protos::conduit::v1alpha::{Phase, PublishRequest};
 use tracing::instrument;
 use uuid::Uuid;
 
-use crate::state::AppState;
+use crate::{
+    auth::{JwtValidationError, validate_token},
+    state::AppState,
+};
 
 const STREAM_TTL_SEC: i64 = 300; // 5 minutes
 const MAX_STREAM_LEN: usize = 500;
@@ -53,8 +56,36 @@ async fn do_publish<R: RedisOperations>(
 pub async fn publish_handler(
     State(state): State<AppState>,
     Path((org_id, channel_id)): Path<(u64, Uuid)>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<String, (StatusCode, String)> {
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .ok_or((
+            StatusCode::UNAUTHORIZED,
+            "Missing authorization header".to_string(),
+        ))?;
+
+    let token = auth_header.strip_prefix("Bearer ").ok_or((
+        StatusCode::UNAUTHORIZED,
+        "Invalid authorization format".to_string(),
+    ))?;
+
+    validate_token(
+        token,
+        state.jwt_config.secret.as_bytes(),
+        &state.jwt_config.expected_issuer,
+        &state.jwt_config.expected_audience,
+    )
+    .map_err(|e| match e {
+        JwtValidationError::TokenExpired => (StatusCode::UNAUTHORIZED, "Token expired".to_string()),
+        JwtValidationError::ValidationFailed(_) => (
+            StatusCode::UNAUTHORIZED,
+            "Token validation failed".to_string(),
+        ),
+    })?;
+
     do_publish(&state.redis, org_id, channel_id, body).await
 }
 

@@ -12,7 +12,7 @@ use publish::{
         health::{healthz_handler, readyz_handler},
         publish::publish_handler,
     },
-    state::AppState,
+    state::{AppState, JwtConfig},
 };
 use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
 
@@ -69,9 +69,12 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
 
     let broker = RedisClient::new(redis_url.as_str()).await?;
 
+    let jwt_config = JwtConfig::from_env()?;
+
     let state = AppState {
         redis: broker,
         start_time: Instant::now(),
+        jwt_config,
     };
 
     let mut app = Router::new()
@@ -93,6 +96,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     }
 
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
+    println!("Running on http://{}", addr);
 
     let listener = TcpListener::bind(addr).await?;
     axum::serve(listener, app)
