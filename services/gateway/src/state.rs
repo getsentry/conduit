@@ -19,9 +19,9 @@ pub struct JwtConfig {
 
 impl JwtConfig {
     pub fn from_env() -> anyhow::Result<Self> {
-        let issuer = env::var("JWT_ISSUER")?;
-        let audience = env::var("JWT_AUDIENCE")?;
-        let public_key_pem = env::var("JWT_PUBLIC_KEY")?;
+        let issuer = env::var("GATEWAY_JWT_ISSUER")?;
+        let audience = env::var("GATEWAY_JWT_AUDIENCE")?;
+        let public_key_pem = env::var("GATEWAY_JWT_PUBLIC_KEY")?;
 
         Ok(Self {
             expected_issuer: issuer,
