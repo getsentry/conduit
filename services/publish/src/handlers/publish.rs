@@ -132,7 +132,7 @@ mod tests {
                 always(),
             )
             .times(1)
-            .returning(|_, _| Ok(true));
+            .returning(|_, _| Ok(1));
 
         mock_redis
             .expect_publish()
@@ -193,7 +193,7 @@ mod tests {
                 always(),
             )
             .times(1)
-            .returning(|_, _| Ok(true));
+            .returning(|_, _| Ok(1));
 
         mock_redis
             .expect_publish()
@@ -234,7 +234,7 @@ mod tests {
                 key == format!("stream:123:{}", channel_id)
             }))
             .times(1)
-            .returning(|_| Ok(true));
+            .returning(|_| Ok(1));
 
         let request = PublishRequest {
             channel_id: channel_id.to_string(),
@@ -323,7 +323,7 @@ mod tests {
                 always(),
             )
             .times(1)
-            .returning(|_, _| Ok(true));
+            .returning(|_, _| Ok(1));
 
         mock_redis
             .expect_publish()
@@ -391,7 +391,7 @@ mod tests {
                 always(),
             )
             .times(1)
-            .returning(|_, _| Ok(true));
+            .returning(|_, _| Ok(1));
 
         mock_redis
             .expect_publish()
@@ -468,7 +468,7 @@ mod tests {
                 always(),
             )
             .times(1)
-            .returning(|_, _| Ok(true));
+            .returning(|_, _| Ok(1));
 
         mock_redis
             .expect_publish()
@@ -565,7 +565,7 @@ mod tests {
                 always(),
             )
             .times(1)
-            .returning(|_, _| Ok(true));
+            .returning(|_, _| Ok(1));
 
         mock_redis.expect_publish().returning(|_, _| {
             Err(BrokerError::Redis(redis::RedisError::from((

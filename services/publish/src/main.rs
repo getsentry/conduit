@@ -35,21 +35,13 @@ async fn cleanup_old_stream(
     let total = old_streams.len();
     for old_stream in old_streams {
         match redis.delete_stream(&old_stream).await {
-            Ok(res) => {
-                if res {
-                    deleted += 1;
-                }
-            }
+            Ok(res) => deleted += res,
             Err(e) => {
                 tracing::error!(error = %e, stream = ?old_stream, "Failed to delete stream");
             }
         };
         match redis.untrack_stream(&old_stream).await {
-            Ok(res) => {
-                if res {
-                    untracked += 1;
-                }
-            }
+            Ok(res) => untracked += res,
             Err(e) => {
                 tracing::error!(error = %e, stream = ?old_stream, "Failed to untrack stream");
             }
@@ -190,9 +182,9 @@ mod tests {
             .with(eq(1000))
             .returning(move |_| Ok(vec![StreamKey::new(123, channel_id).as_redis_key()]));
 
-        mock.expect_delete_stream().returning(|_| Ok(true));
+        mock.expect_delete_stream().returning(|_| Ok(1));
 
-        mock.expect_untrack_stream().returning(|_| Ok(true));
+        mock.expect_untrack_stream().returning(|_| Ok(1));
 
         let (total, deleted, untracked) = cleanup_old_stream(&mock, 1000).await.unwrap();
 

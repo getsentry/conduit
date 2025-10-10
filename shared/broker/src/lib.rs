@@ -49,10 +49,10 @@ pub trait RedisOperations: Send + Sync {
     ) -> Result<StreamEvents>;
     async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool>;
     async fn trim_stream(&self, key: &StreamKey, max_len: usize) -> Result<i64>;
-    async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<bool>;
+    async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<usize>;
     async fn get_old_streams(&self, cutoff_timestamp: i64) -> Result<Vec<String>>;
-    async fn untrack_stream(&self, key: &str) -> Result<bool>;
-    async fn delete_stream(&self, key: &str) -> Result<bool>;
+    async fn untrack_stream(&self, key: &str) -> Result<usize>;
+    async fn delete_stream(&self, key: &str) -> Result<usize>;
 }
 
 #[derive(Clone)]
@@ -123,9 +123,9 @@ impl RedisOperations for RedisClient {
         Ok(trimmed)
     }
 
-    async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<bool> {
+    async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<usize> {
         let mut conn = self.conn.clone();
-        let res: bool = conn
+        let res: usize = conn
             .zadd(STREAM_TIMESTAMPS, key.as_redis_key(), timestamp)
             .await?;
         Ok(res)
@@ -139,15 +139,15 @@ impl RedisOperations for RedisClient {
         Ok(old_streams)
     }
 
-    async fn untrack_stream(&self, key: &str) -> Result<bool> {
+    async fn untrack_stream(&self, key: &str) -> Result<usize> {
         let mut conn = self.conn.clone();
-        let res: bool = conn.zrem(STREAM_TIMESTAMPS, key).await?;
+        let res: usize = conn.zrem(STREAM_TIMESTAMPS, key).await?;
         Ok(res)
     }
 
-    async fn delete_stream(&self, key: &str) -> Result<bool> {
+    async fn delete_stream(&self, key: &str) -> Result<usize> {
         let mut conn = self.conn.clone();
-        let res: bool = conn.del(key).await?;
+        let res: usize = conn.del(key).await?;
         Ok(res)
     }
 }
