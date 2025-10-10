@@ -27,6 +27,11 @@ style GW fill:#81c784
 style C fill:#e1f5fe
 ```
 
+### Stream Management
+
+Streams are automatically tracked and cleaned up after a certain amount of inactivity.
+Completed streams (Phase::End) are expired via Redis TTL.
+
 ## Usage Examples
 
 ### Publishing a Stream

@@ -7,6 +7,7 @@ use mockall::automock;
 use uuid::Uuid;
 
 const STREAM_DATA_FIELD: &str = "data";
+const STREAM_TIMESTAMPS: &str = "stream_timestamps";
 
 pub struct StreamKey {
     org_id: u64,
@@ -48,6 +49,10 @@ pub trait RedisOperations: Send + Sync {
     ) -> Result<StreamEvents>;
     async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool>;
     async fn trim_stream(&self, key: &StreamKey, max_len: usize) -> Result<i64>;
+    async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<bool>;
+    async fn get_old_streams(&self, cutoff_timestamp: i64) -> Result<Vec<String>>;
+    async fn untrack_stream(&self, key: &str) -> Result<bool>;
+    async fn delete_stream(&self, key: &str) -> Result<bool>;
 }
 
 #[derive(Clone)]
@@ -116,5 +121,33 @@ impl RedisOperations for RedisClient {
             .xtrim(key.as_redis_key(), StreamMaxlen::Approx(max_len))
             .await?;
         Ok(trimmed)
+    }
+
+    async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<bool> {
+        let mut conn = self.conn.clone();
+        let res: bool = conn
+            .zadd(STREAM_TIMESTAMPS, key.as_redis_key(), timestamp)
+            .await?;
+        Ok(res)
+    }
+
+    async fn get_old_streams(&self, cutoff_timestamp: i64) -> Result<Vec<String>> {
+        let mut conn = self.conn.clone();
+        let old_streams: Vec<String> = conn
+            .zrangebyscore(STREAM_TIMESTAMPS, -f32::INFINITY, cutoff_timestamp)
+            .await?;
+        Ok(old_streams)
+    }
+
+    async fn untrack_stream(&self, key: &str) -> Result<bool> {
+        let mut conn = self.conn.clone();
+        let res: bool = conn.zrem(STREAM_TIMESTAMPS, key).await?;
+        Ok(res)
+    }
+
+    async fn delete_stream(&self, key: &str) -> Result<bool> {
+        let mut conn = self.conn.clone();
+        let res: bool = conn.del(key).await?;
+        Ok(res)
     }
 }

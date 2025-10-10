@@ -4,6 +4,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use broker::{RedisOperations, StreamKey};
+use chrono::Utc;
 use prost::Message;
 
 use sentry_protos::conduit::v1alpha::{Phase, PublishRequest};
@@ -29,6 +30,16 @@ async fn do_publish<R: RedisOperations>(
 
     let stream_key = StreamKey::new(org_id, channel_id);
 
+    redis
+        .track_stream_update(&stream_key, Utc::now().timestamp())
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Error occurred while publishing".to_string(),
+            )
+        })?;
+
     let id = redis
         .publish(&stream_key, body.to_vec())
         .await
@@ -40,13 +51,22 @@ async fn do_publish<R: RedisOperations>(
         })?;
 
     if let Err(e) = redis.trim_stream(&stream_key, MAX_STREAM_LEN).await {
-        tracing::error!(error = %e, "Failed to trim");
+        tracing::error!(error = %e, stream = ?stream_key.as_redis_key(), "Failed to trim");
     }
 
-    if matches!(stream_event.phase(), Phase::End)
-        && let Err(e) = redis.set_ttl(&stream_key, STREAM_TTL_SEC).await
-    {
-        tracing::error!(error = %e, "Failed to set TTL");
+    if matches!(stream_event.phase(), Phase::End) {
+        match redis.set_ttl(&stream_key, STREAM_TTL_SEC).await {
+            Ok(_) => {
+                // TTL is set, untrack so worker doesn't process it
+                if let Err(e) = redis.untrack_stream(&stream_key.as_redis_key()).await {
+                    tracing::error!(error = %e, stream = ?stream_key.as_redis_key(), "Failed to untrack stream")
+                }
+            }
+            Err(e) => {
+                // TTL wasn't set, worker will have to clean it up
+                tracing::error!(error = %e, stream = ?stream_key.as_redis_key(), "Failed to set TTL");
+            }
+        }
     }
 
     Ok(id)
@@ -95,12 +115,24 @@ mod tests {
     use broker::{Error as BrokerError, MockRedisOperations};
     use mockall::predicate::*;
     use prost_types::{Struct, Timestamp};
+    use redis::RedisError;
     use sentry_protos::conduit::v1alpha::Phase;
 
     #[tokio::test]
     async fn test_publish_success() {
         let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_track_stream_update()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                always(),
+            )
+            .times(1)
+            .returning(|_, _| Ok(true));
 
         mock_redis
             .expect_publish()
@@ -153,6 +185,17 @@ mod tests {
         let mut mock_redis = MockRedisOperations::new();
 
         mock_redis
+            .expect_track_stream_update()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                always(),
+            )
+            .times(1)
+            .returning(|_, _| Ok(true));
+
+        mock_redis
             .expect_publish()
             .with(
                 function(move |key: &StreamKey| {
@@ -185,6 +228,14 @@ mod tests {
             .times(1)
             .returning(|_, _| Ok(true));
 
+        mock_redis
+            .expect_untrack_stream()
+            .with(function(move |key: &str| {
+                key == format!("stream:123:{}", channel_id)
+            }))
+            .times(1)
+            .returning(|_| Ok(true));
+
         let request = PublishRequest {
             channel_id: channel_id.to_string(),
             message_id: Uuid::new_v4().to_string(),
@@ -207,9 +258,72 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_publish_track_failure() {
+        let channel_id = Uuid::new_v4();
+        let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_track_stream_update()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                always(),
+            )
+            .times(1)
+            .returning(|_, _| {
+                Err(BrokerError::Redis(RedisError::from((
+                    redis::ErrorKind::IoError,
+                    "Connection lost",
+                ))))
+            });
+
+        mock_redis.expect_publish().never();
+
+        mock_redis.expect_trim_stream().never();
+
+        mock_redis.expect_set_ttl().never();
+        mock_redis.expect_untrack_stream().never();
+
+        let request = PublishRequest {
+            channel_id: channel_id.to_string(),
+            message_id: Uuid::new_v4().to_string(),
+            client_timestamp: Some(Timestamp {
+                seconds: 1736467200,
+                nanos: 0,
+            }),
+            phase: Phase::Delta.into(),
+            sequence: 2,
+            payload: Some(Struct {
+                fields: std::collections::BTreeMap::new(),
+            }),
+        };
+        let body = Bytes::from(request.encode_to_vec());
+
+        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+
+        // Track failure should prevent publish
+        assert!(result.is_err());
+        let (status, msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(msg, "Error occurred while publishing");
+    }
+
+    #[tokio::test]
     async fn test_publish_trim_failure_still_succeeds() {
         let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_track_stream_update()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                always(),
+            )
+            .times(1)
+            .returning(|_, _| Ok(true));
 
         mock_redis
             .expect_publish()
@@ -239,6 +353,7 @@ mod tests {
             });
 
         mock_redis.expect_set_ttl().never();
+        mock_redis.expect_untrack_stream().never();
 
         let request = PublishRequest {
             channel_id: channel_id.to_string(),
@@ -263,6 +378,166 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_publish_end_ttl_fails_stays_tracked() {
+        let channel_id = Uuid::new_v4();
+        let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_track_stream_update()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                always(),
+            )
+            .times(1)
+            .returning(|_, _| Ok(true));
+
+        mock_redis
+            .expect_publish()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                always(),
+            )
+            .times(1)
+            .returning(|_, _| Ok("stream-id-123".to_string()));
+
+        mock_redis
+            .expect_trim_stream()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                eq(MAX_STREAM_LEN),
+            )
+            .times(1)
+            .returning(|_, _| Ok(0));
+
+        mock_redis
+            .expect_set_ttl()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                eq(STREAM_TTL_SEC),
+            )
+            .times(1)
+            .returning(|_, _| {
+                Err(BrokerError::Redis(RedisError::from((
+                    redis::ErrorKind::IoError,
+                    "Connection lost",
+                ))))
+            });
+
+        mock_redis.expect_untrack_stream().never();
+
+        let request = PublishRequest {
+            channel_id: channel_id.to_string(),
+            message_id: Uuid::new_v4().to_string(),
+            client_timestamp: Some(Timestamp {
+                seconds: 1736467200,
+                nanos: 0,
+            }),
+            phase: Phase::End.into(),
+            sequence: 2,
+            payload: Some(Struct {
+                fields: std::collections::BTreeMap::new(),
+            }),
+        };
+        let body = Bytes::from(request.encode_to_vec());
+
+        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "stream-id-123");
+    }
+
+    #[tokio::test]
+    async fn test_publish_end_untrack_fails_still_succeeds() {
+        let channel_id = Uuid::new_v4();
+        let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_track_stream_update()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                always(),
+            )
+            .times(1)
+            .returning(|_, _| Ok(true));
+
+        mock_redis
+            .expect_publish()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                always(),
+            )
+            .times(1)
+            .returning(|_, _| Ok("stream-id-123".to_string()));
+
+        mock_redis
+            .expect_trim_stream()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                eq(MAX_STREAM_LEN),
+            )
+            .times(1)
+            .returning(|_, _| Ok(0));
+
+        mock_redis
+            .expect_set_ttl()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                eq(STREAM_TTL_SEC),
+            )
+            .times(1)
+            .returning(|_, _| Ok(true));
+
+        mock_redis
+            .expect_untrack_stream()
+            .with(function(move |key: &str| {
+                key == format!("stream:123:{}", channel_id)
+            }))
+            .times(1)
+            .returning(|_| {
+                Err(BrokerError::Redis(RedisError::from((
+                    redis::ErrorKind::IoError,
+                    "Connection lost",
+                ))))
+            });
+
+        let request = PublishRequest {
+            channel_id: channel_id.to_string(),
+            message_id: Uuid::new_v4().to_string(),
+            client_timestamp: Some(Timestamp {
+                seconds: 1736467200,
+                nanos: 0,
+            }),
+            phase: Phase::End.into(),
+            sequence: 2,
+            payload: Some(Struct {
+                fields: std::collections::BTreeMap::new(),
+            }),
+        };
+        let body = Bytes::from(request.encode_to_vec());
+
+        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "stream-id-123");
+    }
+
+    #[tokio::test]
     async fn test_publish_invalid_protobuf() {
         let mock_redis = MockRedisOperations::new();
 
@@ -277,9 +552,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_publish_redis_error() {
+    async fn test_publish_xadd_error() {
         let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_track_stream_update()
+            .with(
+                function(move |key: &StreamKey| {
+                    key.as_redis_key() == format!("stream:123:{}", channel_id)
+                }),
+                always(),
+            )
+            .times(1)
+            .returning(|_, _| Ok(true));
 
         mock_redis.expect_publish().returning(|_, _| {
             Err(BrokerError::Redis(redis::RedisError::from((
@@ -291,6 +577,7 @@ mod tests {
         mock_redis.expect_trim_stream().never();
 
         mock_redis.expect_set_ttl().never();
+        mock_redis.expect_untrack_stream().never();
 
         let request = PublishRequest {
             channel_id: channel_id.to_string(),
