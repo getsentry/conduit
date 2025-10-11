@@ -40,7 +40,7 @@ type Result<T> = std::result::Result<T, Error>;
 #[async_trait]
 pub trait RedisOperations: Send + Sync {
     async fn ping(&self) -> Result<String>;
-    async fn publish(&self, key: &StreamKey, data: Vec<u8>) -> Result<String>;
+    async fn publish(&self, key: &StreamKey, data: Vec<u8>, max_len: usize) -> Result<String>;
     async fn poll(
         &self,
         key: &StreamKey,
@@ -48,7 +48,6 @@ pub trait RedisOperations: Send + Sync {
         opts: &StreamReadOptions,
     ) -> Result<StreamEvents>;
     async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool>;
-    async fn trim_stream(&self, key: &StreamKey, max_len: usize) -> Result<i64>;
     async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<usize>;
     async fn get_old_streams(&self, cutoff_timestamp: i64) -> Result<Vec<String>>;
     async fn untrack_stream(&self, key: &str) -> Result<usize>;
@@ -75,10 +74,15 @@ impl RedisOperations for RedisClient {
         conn.ping().await.map_err(Into::into)
     }
 
-    async fn publish(&self, key: &StreamKey, data: Vec<u8>) -> Result<String> {
+    async fn publish(&self, key: &StreamKey, data: Vec<u8>, max_len: usize) -> Result<String> {
         let mut conn = self.conn.clone();
         let id: String = conn
-            .xadd(key.as_redis_key(), "*", &[(STREAM_DATA_FIELD, data)])
+            .xadd_maxlen(
+                key.as_redis_key(),
+                StreamMaxlen::Approx(max_len),
+                "*",
+                &[(STREAM_DATA_FIELD, data)],
+            )
             .await?;
         Ok(id)
     }
@@ -113,14 +117,6 @@ impl RedisOperations for RedisClient {
         let mut conn = self.conn.clone();
         let res: bool = conn.expire(key.as_redis_key(), seconds).await?;
         Ok(res)
-    }
-
-    async fn trim_stream(&self, key: &StreamKey, max_len: usize) -> Result<i64> {
-        let mut conn = self.conn.clone();
-        let trimmed: i64 = conn
-            .xtrim(key.as_redis_key(), StreamMaxlen::Approx(max_len))
-            .await?;
-        Ok(trimmed)
     }
 
     async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<usize> {
