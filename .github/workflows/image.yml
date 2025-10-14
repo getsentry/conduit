@@ -22,7 +22,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
@@ -36,10 +35,7 @@ jobs:
           build_target: ${{ matrix.target }}
           ghcr: true
           tag_suffix: -${{ matrix.platform }}${{ matrix.target != 'prod' && '-dev' || '' }}
-          google_ar: true
-          google_ar_image_name: us-central1-docker.pkg.dev/sentryio/conduit/conduit-${{ matrix.service }}
-          google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          google_ar: false
           tag_nightly: false
           tag_latest: false
 
@@ -53,6 +49,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -79,3 +76,35 @@ jobs:
             --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:dev \
             ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-amd64-dev \
             ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-arm64-dev
+
+  # Copy manifest from GHCR to Google Artifact Registry, referenced Relay (https://github.com/getsentry/relay/blob/master/.github/workflows/ci.yml)
+  copy-manifest-to-gar:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [gateway, publish]
+    needs: [assemble]
+    if: ${{ (github.ref_name == 'main' || startsWith(github.ref_name, 'releases/')) && github.event_name != 'pull_request' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Google Auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 390.0.0"
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Copy manifest from GHCR to GAR
+        run: |
+          docker buildx imagetools create \
+            --tag us-central1-docker.pkg.dev/sentryio/conduit/conduit-${{ matrix.service }}:${{ github.sha }} \
+            ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.sha }}
