@@ -30,7 +30,7 @@ async fn do_publish<R: RedisOperations>(
     let stream_key = StreamKey::new(org_id, channel_id);
 
     let id = redis
-        .publish(&stream_key, body.to_vec())
+        .publish(&stream_key, body.to_vec(), MAX_STREAM_LEN)
         .await
         .map_err(|_| {
             (
@@ -38,10 +38,6 @@ async fn do_publish<R: RedisOperations>(
                 "Error occurred while publishing".to_string(),
             )
         })?;
-
-    if let Err(e) = redis.trim_stream(&stream_key, MAX_STREAM_LEN).await {
-        tracing::error!(error = %e, "Failed to trim");
-    }
 
     if matches!(stream_event.phase(), Phase::End)
         && let Err(e) = redis.set_ttl(&stream_key, STREAM_TTL_SEC).await
@@ -109,20 +105,10 @@ mod tests {
                     key.as_redis_key() == format!("stream:123:{}", channel_id)
                 }),
                 always(),
-            )
-            .times(1)
-            .returning(|_, _| Ok("stream-id-123".to_string()));
-
-        mock_redis
-            .expect_trim_stream()
-            .with(
-                function(move |key: &StreamKey| {
-                    key.as_redis_key() == format!("stream:123:{}", channel_id)
-                }),
                 eq(MAX_STREAM_LEN),
             )
             .times(1)
-            .returning(|_, _| Ok(0));
+            .returning(|_, _, _| Ok("stream-id-123".to_string()));
 
         mock_redis.expect_set_ttl().never();
 
@@ -159,20 +145,10 @@ mod tests {
                     key.as_redis_key() == format!("stream:123:{}", channel_id)
                 }),
                 always(),
-            )
-            .times(1)
-            .returning(|_, _| Ok("stream-id-123".to_string()));
-
-        mock_redis
-            .expect_trim_stream()
-            .with(
-                function(move |key: &StreamKey| {
-                    key.as_redis_key() == format!("stream:123:{}", channel_id)
-                }),
                 eq(MAX_STREAM_LEN),
             )
             .times(1)
-            .returning(|_, _| Ok(0));
+            .returning(|_, _, _| Ok("stream-id-123".to_string()));
 
         mock_redis
             .expect_set_ttl()
@@ -218,25 +194,10 @@ mod tests {
                     key.as_redis_key() == format!("stream:123:{}", channel_id)
                 }),
                 always(),
-            )
-            .times(1)
-            .returning(|_, _| Ok("stream-id-123".to_string()));
-
-        mock_redis
-            .expect_trim_stream()
-            .with(
-                function(move |key: &StreamKey| {
-                    key.as_redis_key() == format!("stream:123:{}", channel_id)
-                }),
                 eq(MAX_STREAM_LEN),
             )
             .times(1)
-            .returning(|_, _| {
-                Err(BrokerError::Redis(redis::RedisError::from((
-                    redis::ErrorKind::IoError,
-                    "Trim failed",
-                ))))
-            });
+            .returning(|_, _, _| Ok("stream-id-123".to_string()));
 
         mock_redis.expect_set_ttl().never();
 
@@ -281,14 +242,12 @@ mod tests {
         let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
 
-        mock_redis.expect_publish().returning(|_, _| {
+        mock_redis.expect_publish().returning(|_, _, _| {
             Err(BrokerError::Redis(redis::RedisError::from((
                 redis::ErrorKind::IoError,
                 "Connection lost",
             ))))
         });
-
-        mock_redis.expect_trim_stream().never();
 
         mock_redis.expect_set_ttl().never();
 
