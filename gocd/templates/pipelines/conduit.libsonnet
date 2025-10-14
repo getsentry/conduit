@@ -16,41 +16,7 @@ function(region) {
   lock_behavior: 'unlockWhenFinished',
   stages: [
     {
-      pending_cloudbuild_upload: {
-        fetch_materials: true,
-        jobs: {
-          deploy: {
-            timeout: 1200,
-            elastic_profile_id: 'conduit',
-            tasks: [
-              gocdtasks.script(importstr '../bash/check-cloudbuild.sh'),
-            ],
-          },
-        },
-      },
-    },
-    {
-      'deploy-canary': {
-        approval: {
-          type: 'success',
-        },
-        fetch_materials: true,
-        jobs: {
-          deploy: {
-            timeout: 1200,
-            elastic_profile_id: 'conduit',
-            environment_variables: {
-              LABEL_SELECTOR: 'service=conduit,env=canary',
-            },
-            tasks: [
-              gocdtasks.script(importstr '../bash/deploy.sh'),
-            ],
-          },
-        },
-      },
-    },
-    {
-      deploy_primary: {
+      'deploy_primary': {
         approval: {
           type: 'manual',
         },
