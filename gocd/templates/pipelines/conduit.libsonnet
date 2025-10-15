@@ -16,7 +16,7 @@ function(region) {
   lock_behavior: 'unlockWhenFinished',
   stages: [
     {
-      deploy_primary: {
+      'deploy-primary': {
         approval: {
           type: 'manual',
         },
