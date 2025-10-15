@@ -2,11 +2,11 @@ local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libs
 
 function(region) {
   environment_variables: {
-    # SENTRY_REGION is used by the dev-infra scripts to connect to GKE
+    // SENTRY_REGION is used by the dev-infra scripts to connect to GKE
     SENTRY_REGION: region,
   },
   materials: {
-    <repo name>_repo: {
+    conduit_repo: {
       git: 'git@github.com:getsentry/conduit.git',
       shallow_clone: true,
       branch: 'main',
@@ -16,7 +16,7 @@ function(region) {
   lock_behavior: 'unlockWhenFinished',
   stages: [
     {
-      'deploy_primary': {
+      deploy_primary: {
         approval: {
           type: 'manual',
         },
