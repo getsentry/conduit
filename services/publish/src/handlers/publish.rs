@@ -30,10 +30,12 @@ async fn do_publish<R: RedisOperations>(
 
     let stream_key = StreamKey::new(org_id, channel_id);
 
+    // Track stream activity BEFORE publish to prevent orphaned streams.
     redis
         .track_stream_update(&stream_key, Utc::now().timestamp())
         .await
         .map_err(|_| {
+            // If tracking fails, we avoid creating untracked streams.
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Error occurred while publishing".to_string(),
