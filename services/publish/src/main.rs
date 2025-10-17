@@ -1,10 +1,15 @@
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    ops::Sub,
+    time::Duration,
+};
 
 use axum::{
     Router,
     routing::{get, post},
 };
-use broker::RedisClient;
+use broker::{RedisClient, RedisOperations};
+use chrono::Utc;
 use dotenvy::dotenv;
 use monitoring::logging;
 use publish::{
@@ -17,6 +22,35 @@ use publish::{
 use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
 
 const SERVICE_NAME: &str = "publish";
+const WORKER_INTERVAL_SEC: u64 = 300; // 5 minutes
+const STREAM_IDLE_SEC: i64 = 300; // 5 minutes
+
+async fn cleanup_old_stream(
+    redis: &impl RedisOperations,
+    cutoff_timestamp: i64,
+) -> anyhow::Result<(usize, usize, usize)> {
+    let old_streams = redis.get_old_streams(cutoff_timestamp).await?;
+    let mut deleted = 0;
+    let mut untracked = 0;
+    let total = old_streams.len();
+    for old_stream in old_streams {
+        match redis.delete_stream(&old_stream).await {
+            Ok(res) => deleted += res,
+            Err(e) => {
+                tracing::error!(error = %e, stream = ?old_stream, "Failed to delete stream");
+                // Keep tracked so worker retries. Don't orphan streams that still exist
+                continue;
+            }
+        };
+        match redis.untrack_stream(&old_stream).await {
+            Ok(res) => untracked += res,
+            Err(e) => {
+                tracing::error!(error = %e, stream = ?old_stream, "Failed to untrack stream");
+            }
+        };
+    }
+    Ok((total, deleted, untracked))
+}
 
 fn main() -> anyhow::Result<()> {
     dotenv().ok();
@@ -72,7 +106,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let jwt_config = JwtConfig::from_env()?;
 
     let state = AppState {
-        redis: broker,
+        redis: broker.clone(),
         start_time: Instant::now(),
         jwt_config,
     };
@@ -98,6 +132,31 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     println!("Running on http://{}", addr);
 
+    // Background worker to clean up abandoned streams.
+    // Runs every WORKER_INTERVAL_SEC seconds and deletes streams with no activity for STREAM_IDLE_SEC+ seconds.
+    // Streams that reach Phase::End are untracked immediately since Redis TTL handles cleanup.
+    tokio::spawn(async move {
+        tracing::info!(
+            interval_sec = WORKER_INTERVAL_SEC,
+            idle_threshold_sec = STREAM_IDLE_SEC,
+            "Stream cleanup worker started",
+        );
+        let mut interval = tokio::time::interval(Duration::from_secs(WORKER_INTERVAL_SEC));
+        loop {
+            interval.tick().await;
+            let cutoff_timestamp = Utc::now().timestamp().sub(STREAM_IDLE_SEC);
+            let (total, deleted, untracked) =
+                match cleanup_old_stream(&broker, cutoff_timestamp).await {
+                    Ok(counts) => counts,
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to get old streams for cleanup");
+                        continue;
+                    }
+                };
+            tracing::info!(total, deleted, untracked, "Cleanup cycle completed");
+        }
+    });
+
     let listener = TcpListener::bind(addr).await?;
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
@@ -107,4 +166,153 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use broker::{Error as BrokerError, MockRedisOperations, StreamKey};
+    use mockall::predicate::eq;
+    use redis::RedisError;
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn test_cleanup_success() {
+        let mut mock_redis = MockRedisOperations::new();
+        let stream_key = StreamKey::new(123, Uuid::new_v4()).as_redis_key();
+
+        mock_redis
+            .expect_get_old_streams()
+            .with(eq(1000))
+            .returning({
+                let key = stream_key.clone();
+                move |_| Ok(vec![key.clone()])
+            });
+
+        mock_redis
+            .expect_delete_stream()
+            .with(eq(stream_key.clone()))
+            .times(1)
+            .returning(|_| Ok(1));
+
+        mock_redis
+            .expect_untrack_stream()
+            .with(eq(stream_key.clone()))
+            .times(1)
+            .returning(|_| Ok(1));
+
+        let (total, deleted, untracked) = cleanup_old_stream(&mock_redis, 1000).await.unwrap();
+
+        assert_eq!(total, 1);
+        assert_eq!(deleted, 1);
+        assert_eq!(untracked, 1);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_get_streams_fails() {
+        let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_get_old_streams()
+            .with(eq(1000))
+            .returning(|_| {
+                Err(BrokerError::Redis(RedisError::from((
+                    redis::ErrorKind::IoError,
+                    "Connection lost",
+                ))))
+            });
+
+        let result = cleanup_old_stream(&mock_redis, 1000).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_no_old_streams() {
+        let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_get_old_streams()
+            .with(eq(1000))
+            .returning(move |_| Ok(vec![]));
+
+        mock_redis.expect_delete_stream().never();
+
+        mock_redis.expect_untrack_stream().never();
+
+        let (total, deleted, untracked) = cleanup_old_stream(&mock_redis, 1000).await.unwrap();
+
+        assert_eq!(total, 0);
+        assert_eq!(deleted, 0);
+        assert_eq!(untracked, 0);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_delete_fails() {
+        let mut mock_redis = MockRedisOperations::new();
+        let stream_key = StreamKey::new(123, Uuid::new_v4()).as_redis_key();
+
+        mock_redis
+            .expect_get_old_streams()
+            .with(eq(1000))
+            .returning({
+                let key = stream_key.clone();
+                move |_| Ok(vec![key.clone()])
+            });
+
+        mock_redis
+            .expect_delete_stream()
+            .with(eq(stream_key.clone()))
+            .times(1)
+            .returning(|_| {
+                Err(BrokerError::Redis(RedisError::from((
+                    redis::ErrorKind::IoError,
+                    "Connection lost",
+                ))))
+            });
+
+        mock_redis.expect_untrack_stream().never();
+
+        let (total, deleted, untracked) = cleanup_old_stream(&mock_redis, 1000).await.unwrap();
+
+        assert_eq!(total, 1);
+        assert_eq!(deleted, 0);
+        assert_eq!(untracked, 0);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_untrack_fails() {
+        let mut mock_redis = MockRedisOperations::new();
+        let stream_key = StreamKey::new(123, Uuid::new_v4()).as_redis_key();
+
+        mock_redis
+            .expect_get_old_streams()
+            .with(eq(1000))
+            .returning({
+                let key = stream_key.clone();
+                move |_| Ok(vec![key.clone()])
+            });
+
+        mock_redis
+            .expect_delete_stream()
+            .with(eq(stream_key.clone()))
+            .times(1)
+            .returning(|_| Ok(1));
+
+        mock_redis
+            .expect_untrack_stream()
+            .with(eq(stream_key.clone()))
+            .times(1)
+            .returning(|_| {
+                Err(BrokerError::Redis(RedisError::from((
+                    redis::ErrorKind::IoError,
+                    "Connection lost",
+                ))))
+            });
+
+        let (total, deleted, untracked) = cleanup_old_stream(&mock_redis, 1000).await.unwrap();
+
+        assert_eq!(total, 1);
+        assert_eq!(deleted, 1);
+        assert_eq!(untracked, 0);
+    }
 }

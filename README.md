@@ -27,6 +27,19 @@ style GW fill:#81c784
 style C fill:#e1f5fe
 ```
 
+### Stream Management
+
+Streams are automatically tracked and cleaned up after a certain amount of inactivity.
+This prevents memory leaks from:
+
+- Crashed or disconnected publishers
+- Streams that never reach Phase::End
+- Network failures during publishing
+
+Completed streams (Phase::End) are expired via Redis TTL. If TTL setting fails, the cleanup worker handles deletion as a fallback.
+
+**Note:** Publishers should implement retry logic for transient failures. The platform is designed for high frequency real-time streaming where retrying is a standard practice.
+
 ## Usage Examples
 
 ### Publishing a Stream
