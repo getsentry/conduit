@@ -5,3 +5,6 @@
 
 **/__pycache__/
 **/.venv
+
+gocd/templates/vendor/
+gocd/generated-pipelines/
