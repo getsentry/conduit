@@ -39,18 +39,71 @@ type Result<T> = std::result::Result<T, Error>;
 #[automock]
 #[async_trait]
 pub trait RedisOperations: Send + Sync {
+    /// Verifies Redis connectivity by sending a ping command.
+    ///
+    /// # Returns
+    /// "Pong"
     async fn ping(&self) -> Result<String>;
+
+    /// Publishes data to a stream, trimming to approximately `max_len` messages.
+    ///
+    /// # Returns
+    /// The id of the event that was added
     async fn publish(&self, key: &StreamKey, data: Vec<u8>, max_len: usize) -> Result<String>;
+
+    /// Polls for new events after `last_id` with the given options.
+    ///
+    /// # Returns
+    /// Stream events after the specified ID
     async fn poll(
         &self,
         key: &StreamKey,
         last_id: &str,
         opts: &StreamReadOptions,
     ) -> Result<StreamEvents>;
+
+    /// Sets the expiration time for a stream.
+    ///
+    /// # Returns
+    /// Whether the expiration was set
     async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool>;
+
+    /// Records the last activity timestamp for a stream in a sorted set.
+    ///
+    /// This is used by the cleanup worker to identify inactive streams. Each time
+    /// a stream receives activity, this should be called to update its timestamp
+    /// in the `stream_timestamps` sorted set.
+    ///
+    /// # Returns
+    /// The number of new elements added (0 if updating existing, 1 if new)
     async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<usize>;
+
+    /// Retrieves streams that haven't been updated since the cutoff timestamp.
+    ///
+    /// Queries the `stream_timestamps` sorted set for all streams with timestamps
+    /// less than or equal to `cutoff_timestamp`. Used by the cleanup worker to find
+    /// inactive streams eligible for deletion.
+    ///
+    /// # Returns
+    /// Vector of stream keys as strings
     async fn get_old_streams(&self, cutoff_timestamp: i64) -> Result<Vec<String>>;
+
+    /// Removes a stream from activity tracking without deleting the stream data.
+    ///
+    /// Removes the stream key from `stream_timestamps` sorted set. This should
+    /// be called after deleting a stream.
+    ///
+    /// # Returns
+    /// Number of elements removed (1 if found, 0 if not present)
     async fn untrack_stream(&self, key: &str) -> Result<usize>;
+
+    /// Deletes the actual stream and all its messages from Redis.
+    ///
+    /// This removes the Redis stream key and all associated data. Typically called
+    /// by the cleanup worker after a stream has been identified as inactive.
+    ///
+    /// # Returns
+    /// Number of streams deleted
     async fn delete_stream(&self, key: &str) -> Result<usize>;
 }
 
