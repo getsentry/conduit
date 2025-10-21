@@ -29,12 +29,16 @@ style C fill:#e1f5fe
 
 ### Stream Management
 
-Streams are automatically tracked and cleaned up after a certain amount of inactivity.
+Streams are automatically tracked and cleaned up after inactivity (see `STREAM_IDLE_SEC` in the publish service).
 This prevents memory leaks from:
 
 - Crashed or disconnected publishers
 - Streams that never reach Phase::End
 - Network failures during publishing
+
+A cleanup worker runs periodically (see `WORKER_INTERVAL_SEC`), deleting streams that haven't received any publishes within the inactivity threshold. Active streams (receiving regular publishes) are kept alive indefinitely, supporting long-running or continuous streaming use cases.
+
+**Note:** While streams themselves are unbounded in duration, client connections (on the Gateway service) may have separate timeout limits. This allows clients to reconnect to ongoing streams as needed.
 
 Completed streams (Phase::End) are expired via Redis TTL. If TTL setting fails, the cleanup worker handles deletion as a fallback.
 
