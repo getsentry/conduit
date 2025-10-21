@@ -40,7 +40,7 @@ A cleanup worker runs periodically (see `WORKER_INTERVAL_SEC`), deleting streams
 
 **Note:** While streams themselves are unbounded in duration, client connections (on the Gateway service) may have separate timeout limits. This allows clients to reconnect to ongoing streams as needed.
 
-Completed streams (Phase::End) are expired via Redis TTL. If TTL setting fails, the cleanup worker handles deletion as a fallback.
+When publishers signal stream completion by sending Phase::End, the stream is expired via Redis TTL. If TTL setting fails, the cleanup worker handles deletion as a fallback.
 
 **Note:** Publishers should implement retry logic for transient failures. The platform is designed for high frequency real-time streaming where retrying is a standard practice.
 
