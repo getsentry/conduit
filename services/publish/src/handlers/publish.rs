@@ -38,7 +38,7 @@ async fn do_publish<R: RedisOperations>(
             // If tracking fails, we avoid creating untracked streams.
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Error occurred while publishing".to_string(),
+                "Failed to track stream update".to_string(),
             )
         })?;
 
@@ -48,7 +48,7 @@ async fn do_publish<R: RedisOperations>(
         .map_err(|_| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Error occurred while publishing".to_string(),
+                "Failed to publish message to stream".to_string(),
             )
         })?;
 
@@ -282,7 +282,7 @@ mod tests {
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(msg, "Error occurred while publishing");
+        assert_eq!(msg, "Failed to track stream update");
     }
 
     #[tokio::test]
@@ -485,6 +485,6 @@ mod tests {
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(msg, "Error occurred while publishing");
+        assert_eq!(msg, "Failed to publish message to stream");
     }
 }
