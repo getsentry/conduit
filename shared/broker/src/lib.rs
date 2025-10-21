@@ -7,6 +7,9 @@ use mockall::automock;
 use uuid::Uuid;
 
 const STREAM_DATA_FIELD: &str = "data";
+
+// Single sorted set tracks all stream activity. Could be a write hotspot in Redis Cluster at very high scale.
+// Consider sharding the set if ZADD becomes a bottleneck.
 const STREAM_TIMESTAMPS: &str = "stream_timestamps";
 
 pub struct StreamKey {
