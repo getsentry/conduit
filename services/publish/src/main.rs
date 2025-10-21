@@ -19,7 +19,8 @@ use publish::{
     },
     state::{AppState, JwtConfig},
 };
-use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
+use tokio::{net::TcpListener, runtime::Runtime, select, time::Instant};
+use tokio_util::sync::CancellationToken;
 
 const SERVICE_NAME: &str = "publish";
 const WORKER_INTERVAL_SEC: u64 = 300; // 5 minutes
@@ -132,6 +133,9 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     println!("Running on http://{}", addr);
 
+    let shutdown_token = CancellationToken::new();
+    let worker_token = shutdown_token.clone();
+
     // Background worker to clean up abandoned streams.
     // Runs every WORKER_INTERVAL_SEC seconds and deletes streams with no activity for STREAM_IDLE_SEC+ seconds.
     // Streams that reach Phase::End are untracked immediately since Redis TTL handles cleanup.
@@ -143,17 +147,24 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         );
         let mut interval = tokio::time::interval(Duration::from_secs(WORKER_INTERVAL_SEC));
         loop {
-            interval.tick().await;
-            let cutoff_timestamp = Utc::now().timestamp().sub(STREAM_IDLE_SEC);
-            let (total, deleted, untracked) =
-                match cleanup_old_stream(&broker, cutoff_timestamp).await {
-                    Ok(counts) => counts,
-                    Err(e) => {
-                        tracing::error!(error = %e, "Failed to get old streams for cleanup");
-                        continue;
-                    }
-                };
-            tracing::info!(total, deleted, untracked, "Cleanup cycle completed");
+            select! {
+                _ = interval.tick() => {
+                    let cutoff_timestamp = Utc::now().timestamp().sub(STREAM_IDLE_SEC);
+                    let (total, deleted, untracked) =
+                        match cleanup_old_stream(&broker, cutoff_timestamp).await {
+                            Ok(counts) => counts,
+                            Err(e) => {
+                                tracing::error!(error = %e, "Failed to get old streams for cleanup");
+                                continue;
+                            }
+                        };
+                    tracing::info!(total, deleted, untracked, "Cleanup cycle completed");
+                }
+                _ = worker_token.cancelled() => {
+                    tracing::info!("Cleanup worker shutting down gracefully");
+                    break;
+                }
+            }
         }
     });
 
@@ -162,6 +173,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         .with_graceful_shutdown(async move {
             let _ = tokio::signal::ctrl_c().await;
             eprintln!("Shutting down...");
+            shutdown_token.cancel();
         })
         .await?;
 
