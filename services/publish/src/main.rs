@@ -39,6 +39,7 @@ async fn cleanup_old_stream(
             Ok(res) => deleted += res,
             Err(e) => {
                 tracing::error!(error = %e, stream = ?old_stream, "Failed to delete stream");
+                metrics::counter!("cleanup.errors.delete").increment(1);
                 // Keep tracked so worker retries. Don't orphan streams that still exist
                 continue;
             }
@@ -47,6 +48,7 @@ async fn cleanup_old_stream(
             Ok(res) => untracked += res,
             Err(e) => {
                 tracing::error!(error = %e, stream = ?old_stream, "Failed to untrack stream");
+                metrics::counter!("cleanup.errors.untrack").increment(1);
             }
         };
     }
@@ -149,16 +151,29 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         loop {
             select! {
                 _ = interval.tick() => {
+                    let start = Instant::now();
                     let cutoff_timestamp = Utc::now().timestamp().sub(STREAM_IDLE_SEC);
+
                     let (total, deleted, untracked) =
                         match cleanup_old_stream(&broker, cutoff_timestamp).await {
-                            Ok(counts) => counts,
+                            Ok(counts) => {
+                                metrics::counter!("cleanup.cycles.completed").increment(1);
+                                counts
+                            }
                             Err(e) => {
                                 tracing::error!(error = %e, "Failed to get old streams for cleanup");
+                                metrics::counter!("cleanup.cycles.failed").increment(1);
                                 continue;
                             }
                         };
-                    tracing::info!(total, deleted, untracked, "Cleanup cycle completed");
+                    metrics::counter!("cleanup.streams.found").increment(total as u64);
+                    metrics::counter!("cleanup.streams.deleted").increment(deleted as u64);
+                    metrics::counter!("cleanup.streams.untracked").increment(untracked as u64);
+
+                    let duration_ms = start.elapsed().as_millis() as f64;
+                    metrics::histogram!("cleanup.duration_ms").record(duration_ms);
+
+                    tracing::info!(total, deleted, untracked, duration_ms, "Cleanup cycle completed");
                 }
                 _ = worker_token.cancelled() => {
                     tracing::info!("Cleanup worker shutting down gracefully");

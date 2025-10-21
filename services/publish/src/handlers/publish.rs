@@ -36,32 +36,41 @@ async fn do_publish<R: RedisOperations>(
         .await
         .map_err(|_| {
             // If tracking fails, we avoid creating untracked streams.
+            metrics::counter!("publish.track_update.failed").increment(1);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Failed to track stream update".to_string(),
             )
         })?;
+    metrics::counter!("publish.track_update.success").increment(1);
 
     let id = redis
         .publish(&stream_key, body.to_vec(), MAX_STREAM_LEN)
         .await
         .map_err(|_| {
+            metrics::counter!("publish.publish.failed").increment(1);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Failed to publish message to stream".to_string(),
             )
         })?;
+    metrics::counter!("publish.publish.success").increment(1);
 
     if matches!(stream_event.phase(), Phase::End) {
         match redis.set_ttl(&stream_key, STREAM_TTL_SEC).await {
             Ok(_) => {
                 // TTL is set, untrack so worker doesn't process it
+                metrics::counter!("publish.ttl.set.success").increment(1);
                 if let Err(e) = redis.untrack_stream(&stream_key.as_redis_key()).await {
+                    metrics::counter!("publish.untrack.failed").increment(1);
                     tracing::error!(error = %e, stream = ?stream_key.as_redis_key(), "Failed to untrack stream")
+                } else {
+                    metrics::counter!("publish.untrack.success").increment(1);
                 }
             }
             Err(e) => {
                 // TTL wasn't set, worker will have to clean it up
+                metrics::counter!("publish.ttl.set.failed").increment(1);
                 tracing::error!(error = %e, stream = ?stream_key.as_redis_key(), "Failed to set TTL");
             }
         }
