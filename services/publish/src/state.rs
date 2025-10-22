@@ -8,6 +8,7 @@ pub struct AppState {
     pub redis: RedisClient,
     pub start_time: Instant,
     pub jwt_config: JwtConfig,
+    pub cleanup_config: CleanupConfig,
 }
 
 #[derive(Clone)]
@@ -27,6 +28,31 @@ impl JwtConfig {
             expected_issuer: issuer,
             expected_audience: audience,
             secret,
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct CleanupConfig {
+    pub worker_interval_sec: u64,
+    pub stream_idle_sec: i64,
+}
+
+impl CleanupConfig {
+    pub fn from_env() -> anyhow::Result<Self> {
+        let worker_interval_sec = env::var("CLEANUP_WORKER_INTERVAL_SEC")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(300); // Default: 5 minutes
+
+        let stream_idle_sec = env::var("CLEANUP_STREAM_IDLE_SEC")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(300); // Default: 5 minutes
+
+        Ok(Self {
+            worker_interval_sec,
+            stream_idle_sec,
         })
     }
 }

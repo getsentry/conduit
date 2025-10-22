@@ -8,7 +8,7 @@ Each publish updates a stream's activity timestamp in Redis. This allows automat
 
 ### Cleanup Worker
 
-A background worker runs every `WORKER_INTERVAL_SEC` and deletes streams with no activity for `STREAM_IDLE_SEC` seconds.
+A background worker runs periodically (configurable via `CLEANUP_WORKER_INTERVAL_SEC`, default 300s) and deletes streams with no activity for a configurable duration (via `CLEANUP_STREAM_IDLE_SEC`, default 300s).
 
 ### Phase::End Behavior
 
@@ -35,7 +35,7 @@ If a tracking failure occurs on an existing stream close to the cleanup threshol
 
 ### Worker Intervals
 
-Both `WORKER_INTERVAL_SEC` and `STREAM_IDLE_SEC` can be tuned independently based on operational needs.
+Both `CLEANUP_WORKER_INTERVAL_SEC` and `CLEANUP_STREAM_IDLE_SEC` can be tuned independently based on operational needs.
 
 ### Known Edge Cases
 

@@ -17,14 +17,12 @@ use publish::{
         health::{healthz_handler, readyz_handler},
         publish::publish_handler,
     },
-    state::{AppState, JwtConfig},
+    state::{AppState, CleanupConfig, JwtConfig},
 };
 use tokio::{net::TcpListener, runtime::Runtime, select, time::Instant};
 use tokio_util::sync::CancellationToken;
 
 const SERVICE_NAME: &str = "publish";
-const WORKER_INTERVAL_SEC: u64 = 300; // 5 minutes
-const STREAM_IDLE_SEC: i64 = 300; // 5 minutes
 
 async fn cleanup_old_stream(
     redis: &impl RedisOperations,
@@ -107,11 +105,13 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let broker = RedisClient::new(redis_url.as_str()).await?;
 
     let jwt_config = JwtConfig::from_env()?;
+    let cleanup_config = CleanupConfig::from_env()?;
 
     let state = AppState {
         redis: broker.clone(),
         start_time: Instant::now(),
         jwt_config,
+        cleanup_config: cleanup_config.clone(),
     };
 
     let mut app = Router::new()
@@ -139,20 +139,21 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let worker_token = shutdown_token.clone();
 
     // Background worker to clean up abandoned streams.
-    // Runs every WORKER_INTERVAL_SEC seconds and deletes streams with no activity for STREAM_IDLE_SEC+ seconds.
+    // Runs every worker_interval_sec and deletes streams with no activity for stream_idle_sec+ seconds.
     // Streams that reach Phase::End are untracked immediately since Redis TTL handles cleanup.
     tokio::spawn(async move {
         tracing::info!(
-            interval_sec = WORKER_INTERVAL_SEC,
-            idle_threshold_sec = STREAM_IDLE_SEC,
+            interval_sec = cleanup_config.worker_interval_sec,
+            idle_threshold_sec = cleanup_config.stream_idle_sec,
             "Stream cleanup worker started",
         );
-        let mut interval = tokio::time::interval(Duration::from_secs(WORKER_INTERVAL_SEC));
+        let mut interval =
+            tokio::time::interval(Duration::from_secs(cleanup_config.worker_interval_sec));
         loop {
             select! {
                 _ = interval.tick() => {
                     let start = Instant::now();
-                    let cutoff_timestamp = Utc::now().timestamp().sub(STREAM_IDLE_SEC);
+                    let cutoff_timestamp = Utc::now().timestamp().sub(cleanup_config.stream_idle_sec);
 
                     let (total, deleted, untracked) =
                         match cleanup_old_stream(&broker, cutoff_timestamp).await {
