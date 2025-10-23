@@ -27,6 +27,23 @@ style GW fill:#81c784
 style C fill:#e1f5fe
 ```
 
+### Stream Management
+
+Streams are automatically tracked and cleaned up after inactivity (configurable via `CLEANUP_STREAM_IDLE_SEC`, default 300s).
+This prevents memory leaks from:
+
+- Crashed or disconnected publishers
+- Streams that never reach Phase::End
+- Network failures during publishing
+
+A cleanup worker runs periodically (configurable via `CLEANUP_WORKER_INTERVAL_SEC`, default 300s), deleting streams that haven't received any publishes within the inactivity threshold. Active streams (receiving regular publishes) are kept alive indefinitely, supporting long-running or continuous streaming use cases.
+
+**Note:** While streams themselves are unbounded in duration, client connections (on the Gateway service) may have separate timeout limits. This allows clients to reconnect to ongoing streams as needed.
+
+When publishers signal stream completion by sending Phase::End, the stream is expired via Redis TTL. If TTL setting fails, the cleanup worker handles deletion as a fallback.
+
+**Note:** Publishers should implement retry logic for transient failures. The platform is designed for high frequency real-time streaming where retrying is a standard practice.
+
 ## Usage Examples
 
 ### Publishing a Stream
