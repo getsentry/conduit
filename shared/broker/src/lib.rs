@@ -1,5 +1,6 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
-use redis::aio::ConnectionManager;
 use redis::streams::{StreamMaxlen, StreamReadOptions, StreamReadReply};
 use redis::{AsyncCommands, from_redis_value};
 
@@ -11,6 +12,11 @@ const STREAM_DATA_FIELD: &str = "data";
 // Single sorted set tracks all stream activity. Could be a write hotspot in Redis Cluster at very high scale.
 // Consider sharding the set if ZADD becomes a bottleneck.
 const STREAM_TIMESTAMPS: &str = "stream_timestamps";
+
+const DEFAULT_REDIS_POOL_MAX_SIZE: usize = 256;
+const DEFAULT_REDIS_POOL_WAIT_TIMEOUT_SECS: u64 = 5;
+const DEFAULT_REDIS_POOL_CREATE_TIMEOUT_SECS: u64 = 3;
+const DEFAULT_REDIS_POOL_RECYCLE_TIMEOUT_SECS: u64 = 3;
 
 pub struct StreamKey {
     org_id: u64,
@@ -35,6 +41,12 @@ pub struct StreamEvents {
 pub enum Error {
     #[error("Redis error: {0}")]
     Redis(#[from] redis::RedisError),
+
+    #[error("Pool error: {0}")]
+    Pool(#[from] deadpool_redis::PoolError),
+
+    #[error("Pool creation error: {0}")]
+    CreatePool(#[from] deadpool_redis::CreatePoolError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -112,26 +124,54 @@ pub trait RedisOperations: Send + Sync {
 
 #[derive(Clone)]
 pub struct RedisClient {
-    conn: ConnectionManager,
+    pool: deadpool_redis::cluster::Pool,
 }
 
 impl RedisClient {
     pub async fn new(redis_url: &str) -> Result<Self> {
-        let client = redis::Client::open(redis_url)?;
-        let conn = ConnectionManager::new(client).await?;
-        Ok(Self { conn })
+        let max_size = std::env::var("REDIS_POOL_MAX_SIZE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_REDIS_POOL_MAX_SIZE);
+        let wait_timeout_seconds = std::env::var("REDIS_POOL_WAIT_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_REDIS_POOL_WAIT_TIMEOUT_SECS);
+        let create_timeout_seconds = std::env::var("REDIS_POOL_CREATE_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_REDIS_POOL_CREATE_TIMEOUT_SECS);
+        let recycle_timeout_seconds = std::env::var("REDIS_POOL_RECYCLE_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_REDIS_POOL_RECYCLE_TIMEOUT_SECS);
+        let cfg = deadpool_redis::cluster::Config {
+            urls: Some(vec![redis_url.to_string()]),
+            pool: Some(deadpool_redis::PoolConfig {
+                max_size,
+                timeouts: deadpool_redis::Timeouts {
+                    wait: Some(Duration::from_secs(wait_timeout_seconds)),
+                    create: Some(Duration::from_secs(create_timeout_seconds)),
+                    recycle: Some(Duration::from_secs(recycle_timeout_seconds)),
+                },
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let pool = cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1))?;
+        Ok(Self { pool })
     }
 }
 
 #[async_trait]
 impl RedisOperations for RedisClient {
     async fn ping(&self) -> Result<String> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.pool.get().await?;
         conn.ping().await.map_err(Into::into)
     }
 
     async fn publish(&self, key: &StreamKey, data: Vec<u8>, max_len: usize) -> Result<String> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.pool.get().await?;
         let id: String = conn
             .xadd_maxlen(
                 key.as_redis_key(),
@@ -149,7 +189,7 @@ impl RedisOperations for RedisClient {
         last_id: &str,
         opts: &StreamReadOptions,
     ) -> Result<StreamEvents> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.pool.get().await?;
         let reply: StreamReadReply = conn
             .xread_options(&[&key.as_redis_key()], &[last_id], opts)
             .await?;
@@ -170,13 +210,13 @@ impl RedisOperations for RedisClient {
     }
 
     async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.pool.get().await?;
         let res: bool = conn.expire(key.as_redis_key(), seconds).await?;
         Ok(res)
     }
 
     async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<usize> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.pool.get().await?;
         let res: usize = conn
             .zadd(STREAM_TIMESTAMPS, key.as_redis_key(), timestamp)
             .await?;
@@ -184,7 +224,7 @@ impl RedisOperations for RedisClient {
     }
 
     async fn get_old_streams(&self, cutoff_timestamp: i64) -> Result<Vec<String>> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.pool.get().await?;
         let old_streams: Vec<String> = conn
             .zrangebyscore(STREAM_TIMESTAMPS, -f32::INFINITY, cutoff_timestamp)
             .await?;
@@ -192,13 +232,13 @@ impl RedisOperations for RedisClient {
     }
 
     async fn untrack_stream(&self, key: &str) -> Result<usize> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.pool.get().await?;
         let res: usize = conn.zrem(STREAM_TIMESTAMPS, key).await?;
         Ok(res)
     }
 
     async fn delete_stream(&self, key: &str) -> Result<usize> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.pool.get().await?;
         let res: usize = conn.del(key).await?;
         Ok(res)
     }
