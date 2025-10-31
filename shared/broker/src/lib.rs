@@ -156,6 +156,7 @@ impl RedisClient {
                 },
                 ..Default::default()
             }),
+            connections: None,
             ..Default::default()
         };
         let pool = cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1))?;
