@@ -33,7 +33,7 @@ pub fn init(metrics_config: MetricsConfig) {
             builder.with_queue_size(5000).with_buffer_size(256),
             |builder, (key, value)| builder.with_default_tag(key, value),
         )
-        .build(Some(&metrics_config.service_name))
+        .build(Some(&format!("conduit.{}", metrics_config.service_name)))
         .expect("Could not create StatsdRecorder");
 
     metrics::set_global_recorder(recorder).expect("Could not set global metrics recorder")
