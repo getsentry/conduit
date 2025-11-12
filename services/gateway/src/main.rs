@@ -10,8 +10,10 @@ use gateway::{
     },
     state::{AppState, JwtConfig},
 };
+use http::Method;
 use monitoring::logging;
 use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
+use tower_http::cors::{Any, CorsLayer};
 
 const SERVICE_NAME: &str = "gateway";
 
@@ -74,23 +76,19 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         jwt_config,
     };
 
-    let mut app = Router::new()
+    // CORS: Allow all origins. JWT authentication (not cookies) is our security boundary.
+    // If we switch to cookie-based auth, we will need to restrict origins to prevent CSRF.
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET])
+        .allow_headers(Any);
+
+    let app = Router::new()
         .route("/healthz", get(healthz_handler))
         .route("/readyz", get(readyz_handler))
         .route("/events/{org_id}", get(sse_handler))
+        .layer(cors)
         .with_state(state);
-
-    #[cfg(debug_assertions)]
-    {
-        use tower_http::cors::{Any, CorsLayer};
-
-        let cors = CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any);
-
-        app = app.layer(cors);
-    }
 
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     println!("Running on http://{}", addr);
