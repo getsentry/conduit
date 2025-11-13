@@ -84,18 +84,25 @@ pub fn create_event_stream<R: RedisOperations>(
 
     async_stream::stream! {
         'outer: loop {
+            let poll_start = std::time::Instant::now();
             let stream_events: StreamEvents = match redis.poll(&stream_key, &last_id, &stream_read_opts).await {
                 Ok(e) => {
+                    metrics::histogram!("stream.redis_poll.latency_ms").record(poll_start.elapsed().as_millis() as f64);
                     consecutive_errors = 0;
+                    metrics::gauge!("stream.consecutive_errors").set(0.0);
                     e
                 }
                 Err(_) => {
+                    metrics::histogram!("stream.redis_poll.latency_ms").record(poll_start.elapsed().as_millis() as f64);
+                    metrics::counter!("stream.redis_poll.errors").increment(1);
                     consecutive_errors += 1;
+                    metrics::gauge!("stream.consecutive_errors").set(consecutive_errors as f64);
                     if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
                         // TODO: use a proper event schema
                         yield Ok(Event::default()
                             .event("error")
                             .data("Too many errors, closing stream"));
+                        metrics::counter!("connections.closed.error_limit").increment(1);
                         break 'outer;
                     }
                     sleep(Duration::from_millis(ERROR_BACKOFF_BASE_MS * consecutive_errors)).await;
@@ -103,15 +110,18 @@ pub fn create_event_stream<R: RedisOperations>(
                 }
             };
             if stream_events.events.is_empty() {
+                metrics::counter!("stream.redis_poll.empty").increment(1);
                 let jitter_ms = rng().random_range(JITTER_MS_MIN..=JITTER_MS_MAX);
                 sleep(Duration::from_millis(jitter_ms)).await;
                 continue;
             }
+            metrics::histogram!("stream.redis_poll.events_per_poll").record(stream_events.events.len() as f64);
             for (event_id, event_data) in stream_events.events {
                 let publish_request: PublishRequest = match PublishRequest::decode(&*event_data) {
                     Ok(pr) => pr,
                     Err(_) => {
                         tracing::error!("Failed to decode protobuf for event {}", event_id);
+                        metrics::counter!("stream.protobuf_decode.failed").increment(1);
                         last_id = event_id;
                         continue;
                     }
@@ -121,6 +131,7 @@ pub fn create_event_stream<R: RedisOperations>(
                     Ok(id) => id,
                     Err(_) => {
                         tracing::error!("Invalid message_id UUID {}", publish_request.message_id);
+                        metrics::counter!("stream.uuid_parse.failed").increment(1);
                         last_id = event_id;
                         continue;
                     }
@@ -130,6 +141,7 @@ pub fn create_event_stream<R: RedisOperations>(
                     Ok(id) => id,
                     Err(_) => {
                         tracing::error!("Invalid channel_id UUID {}", publish_request.channel_id);
+                        metrics::counter!("stream.uuid_parse.failed").increment(1);
                         last_id = event_id;
                         continue;
                     }
@@ -148,6 +160,7 @@ pub fn create_event_stream<R: RedisOperations>(
                     Ok(j) => j,
                     Err(_) => {
                         tracing::error!("Failed to serialize SSE event");
+                        metrics::counter!("stream.json_serialize.failed").increment(1);
                         continue;
                     }
                 };
@@ -157,10 +170,12 @@ pub fn create_event_stream<R: RedisOperations>(
                     .id(&event_id)
                     .data(sse_event_json)
                 );
+                metrics::counter!("stream.events_delivered").increment(1);
 
                 last_id = event_id.clone();
 
                 if matches!(publish_request.phase(), sentry_protos::conduit::v1alpha::Phase::End) {
+                    metrics::counter!("connections.closed.completed").increment(1);
                     break 'outer;
                 }
             }
@@ -180,6 +195,7 @@ pub async fn sse_handler(
     Path(org_id): Path<u64>,
     Query(q): Query<SSEQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, axum::Error>>>, (StatusCode, String)> {
+    metrics::counter!("connections.attempts").increment(1);
     let claims = validate_token(
         &q.token,
         org_id,
@@ -190,14 +206,23 @@ pub async fn sse_handler(
     )
     .map_err(|e| match e {
         TokenValidationError::TokenExpired => {
+            metrics::counter!("auth.token_expired").increment(1);
             (StatusCode::UNAUTHORIZED, "Token expired".to_string())
         }
         TokenValidationError::OrgIdMismatch { .. }
         | TokenValidationError::ChannelIdMismatch { .. } => {
+            metrics::counter!("auth.invalid_claims").increment(1);
             (StatusCode::FORBIDDEN, "Invalid token claims".to_string())
         }
-        _ => (StatusCode::UNAUTHORIZED, "Invalid token".to_string()),
+        _ => {
+            metrics::counter!("auth.token_validation.failed").increment(1);
+            (StatusCode::UNAUTHORIZED, "Invalid token".to_string())
+        }
     })?;
+
+    metrics::counter!("auth.token_validation.success").increment(1);
+
+    metrics::counter!("connections.total").increment(1);
 
     let stream = create_event_stream(Arc::new(state.redis), claims.org_id, claims.channel_id);
 
