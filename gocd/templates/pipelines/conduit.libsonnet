@@ -16,14 +16,28 @@ function(region) {
   lock_behavior: 'unlockWhenFinished',
   stages: [
     {
-      'deploy-primary': {
-        approval: {
-          type: 'manual',
+      checks: {
+        fetch_materials: true,
+        jobs: {
+          checks: {
+            timeout: 10,
+            elastic_profile_id: 'conduit',
+            environment_variables: {
+              GITHUB_TOKEN: '{{SECRET:[devinfra-github][token]}}',
+            },
+            tasks: [
+              gocdtasks.script(importstr '../bash/check-github-runs.sh'),
+            ],
+          },
         },
+      },
+    },
+    {
+      'deploy-primary': {
         fetch_materials: true,
         jobs: {
           deploy: {
-            timeout: 1200,
+            timeout: 20,
             elastic_profile_id: 'conduit',
             environment_variables: {
               LABEL_SELECTOR: 'service=conduit',
