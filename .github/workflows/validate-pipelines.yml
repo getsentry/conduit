@@ -57,6 +57,6 @@ jobs:
           generated-dir: gocd/generated-pipelines
       - uses: getsentry/action-validate-gocd-pipelines@80fde540c1403d52e17783368930fa28bd93447f # v1
         with:
-          configrepo: getsentry__master
+          configrepo: conduit__main
           gocd_access_token: ${{ secrets.GOCD_ACCESS_TOKEN }}
           google_oidc_token: ${{ steps.auth.outputs.id_token }}
