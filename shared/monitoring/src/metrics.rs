@@ -1,4 +1,5 @@
-use metrics_exporter_statsd::StatsdBuilder;
+use metrics::Label;
+use metrics_exporter_dogstatsd::DogStatsDBuilder;
 use std::{collections::BTreeMap, net::SocketAddr};
 
 pub struct MetricsConfig {
@@ -24,17 +25,19 @@ impl MetricsConfig {
 pub fn init(metrics_config: MetricsConfig) {
     let address = metrics_config.statsd_addr;
 
-    let builder = StatsdBuilder::from(address.ip().to_string(), address.port());
-
-    let recorder = metrics_config
+    let labels: Vec<Label> = metrics_config
         .default_tags
         .into_iter()
-        .fold(
-            builder.with_queue_size(5000).with_buffer_size(256),
-            |builder, (key, value)| builder.with_default_tag(key, value),
-        )
-        .build(Some(&format!("conduit.{}", metrics_config.service_name)))
-        .expect("Could not create StatsdRecorder");
+        .map(|(key, value)| Label::new(key, value))
+        .collect();
+
+    let recorder = DogStatsDBuilder::default()
+        .with_remote_address(address.to_string())
+        .expect("Failed to parse remote address")
+        .set_global_prefix(&format!("conduit.{}", metrics_config.service_name))
+        .with_global_labels(labels)
+        .build()
+        .expect("Could not create DogStatsDRecorder");
 
     metrics::set_global_recorder(recorder).expect("Could not set global metrics recorder")
 }

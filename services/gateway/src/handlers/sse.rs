@@ -75,7 +75,6 @@ pub fn create_event_stream<R: RedisOperations>(
     org_id: u64,
     channel_id: Uuid,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
-    metrics::gauge!("connections.active").increment(1.0);
     struct ConnectionGuard;
     impl Drop for ConnectionGuard {
         fn drop(&mut self) {
@@ -92,6 +91,7 @@ pub fn create_event_stream<R: RedisOperations>(
     let mut consecutive_errors = 0;
 
     async_stream::stream! {
+        metrics::gauge!("connections.active").increment(1.0);
         let _guard = _guard;
         'outer: loop {
             let poll_start = std::time::Instant::now();
