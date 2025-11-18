@@ -75,6 +75,15 @@ pub fn create_event_stream<R: RedisOperations>(
     org_id: u64,
     channel_id: Uuid,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
+    metrics::gauge!("connections.active").increment(1.0);
+    struct ConnectionGuard;
+    impl Drop for ConnectionGuard {
+        fn drop(&mut self) {
+            metrics::gauge!("connections.active").decrement(1.0);
+        }
+    }
+    let _guard = ConnectionGuard;
+
     let stream_key = StreamKey::new(org_id, channel_id);
     let stream_read_opts = StreamReadOptions::default()
         .block(STREAM_BLOCK_MS)
@@ -83,6 +92,7 @@ pub fn create_event_stream<R: RedisOperations>(
     let mut consecutive_errors = 0;
 
     async_stream::stream! {
+        let _guard = _guard;
         'outer: loop {
             let poll_start = std::time::Instant::now();
             let stream_events: StreamEvents = match redis.poll(&stream_key, &last_id, &stream_read_opts).await {
@@ -103,7 +113,6 @@ pub fn create_event_stream<R: RedisOperations>(
                             .event("error")
                             .data("Too many errors, closing stream"));
                         metrics::counter!("connections.closed.error_limit").increment(1);
-                        metrics::gauge!("connections.active").decrement(1.0);
                         break 'outer;
                     }
                     sleep(Duration::from_millis(ERROR_BACKOFF_BASE_MS * consecutive_errors)).await;
@@ -177,7 +186,6 @@ pub fn create_event_stream<R: RedisOperations>(
 
                 if matches!(publish_request.phase(), sentry_protos::conduit::v1alpha::Phase::End) {
                     metrics::counter!("connections.closed.completed").increment(1);
-                    metrics::gauge!("connections.active").decrement(1.0);
                     break 'outer;
                 }
             }
@@ -225,7 +233,6 @@ pub async fn sse_handler(
     metrics::counter!("auth.token_validation.success").increment(1);
 
     metrics::counter!("connections.total").increment(1);
-    metrics::gauge!("connections.active").increment(1.0);
 
     let stream = create_event_stream(Arc::new(state.redis), claims.org_id, claims.channel_id);
 
