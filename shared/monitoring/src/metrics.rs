@@ -34,7 +34,7 @@ pub fn init(metrics_config: MetricsConfig) {
     let recorder = DogStatsDBuilder::default()
         .with_remote_address(address.to_string())
         .expect("Failed to parse remote address")
-        .set_global_prefix(&format!("conduit.{}", metrics_config.service_name))
+        .set_global_prefix(format!("conduit.{}", metrics_config.service_name))
         .with_global_labels(labels)
         .build()
         .expect("Could not create DogStatsDRecorder");
