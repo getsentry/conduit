@@ -103,7 +103,7 @@ pub fn create_event_stream<R: RedisOperations>(
                             .event("error")
                             .data("Too many errors, closing stream"));
                         metrics::counter!("connections.closed.error_limit").increment(1);
-                        metrics::gauge!("connections.active").increment(1.0);
+                        metrics::gauge!("connections.active").decrement(1.0);
                         break 'outer;
                     }
                     sleep(Duration::from_millis(ERROR_BACKOFF_BASE_MS * consecutive_errors)).await;
