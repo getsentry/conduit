@@ -81,7 +81,6 @@ pub fn create_event_stream<R: RedisOperations>(
             metrics::gauge!("connections.active").decrement(1.0);
         }
     }
-    let _guard = ConnectionGuard;
 
     let stream_key = StreamKey::new(org_id, channel_id);
     let stream_read_opts = StreamReadOptions::default()
@@ -92,7 +91,8 @@ pub fn create_event_stream<R: RedisOperations>(
 
     async_stream::stream! {
         metrics::gauge!("connections.active").increment(1.0);
-        let _guard = _guard;
+        let _guard = ConnectionGuard;
+
         'outer: loop {
             let poll_start = std::time::Instant::now();
             let stream_events: StreamEvents = match redis.poll(&stream_key, &last_id, &stream_read_opts).await {
