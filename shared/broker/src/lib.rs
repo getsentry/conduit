@@ -160,7 +160,14 @@ impl RedisClient {
             ..Default::default()
         };
         let pool = cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1))?;
+
+        metrics::gauge!("redis.pool.max_size").set(max_size as f64);
+
         Ok(Self { pool })
+    }
+
+    pub fn pool_status(&self) -> deadpool_redis::cluster::Status {
+        self.pool.status()
     }
 }
 

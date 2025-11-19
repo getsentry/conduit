@@ -23,6 +23,7 @@ use tokio::{net::TcpListener, runtime::Runtime, select, time::Instant};
 use tokio_util::sync::CancellationToken;
 
 const SERVICE_NAME: &str = "publish";
+const POOL_METRICS_INTERVAL_SEC: u64 = 10;
 
 async fn cleanup_old_stream(
     redis: &impl RedisOperations,
@@ -114,6 +115,8 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         cleanup_config: cleanup_config.clone(),
     };
 
+    let redis_for_metrics = state.redis.clone();
+
     let mut app = Router::new()
         .route("/healthz", get(healthz_handler))
         .route("/readyz", get(readyz_handler))
@@ -131,6 +134,23 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
 
         app = app.layer(cors);
     }
+
+    tokio::spawn({
+        async move {
+            let mut interval =
+                tokio::time::interval(Duration::from_secs(POOL_METRICS_INTERVAL_SEC));
+            loop {
+                interval.tick().await;
+                let status = redis_for_metrics.pool_status();
+
+                metrics::gauge!("redis.pool.size").set(status.size as f64);
+                metrics::gauge!("redis.pool.available").set(status.available as f64);
+
+                let active = status.size - status.available;
+                metrics::gauge!("redis.pool.active").set(active as f64);
+            }
+        }
+    });
 
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     println!("Running on http://{}", addr);

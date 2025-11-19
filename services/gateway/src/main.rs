@@ -1,4 +1,7 @@
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    time::Duration,
+};
 
 use axum::{Router, routing::get};
 use broker::RedisClient;
@@ -16,6 +19,7 @@ use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
 use tower_http::cors::{Any, CorsLayer};
 
 const SERVICE_NAME: &str = "gateway";
+const POOL_METRICS_INTERVAL_SEC: u64 = 10;
 
 fn main() -> anyhow::Result<()> {
     dotenv().ok();
@@ -76,6 +80,8 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         jwt_config,
     };
 
+    let redis_for_metrics = state.redis.clone();
+
     // CORS: Allow all origins. JWT authentication (not cookies) is our security boundary.
     // If we switch to cookie-based auth, we will need to restrict origins to prevent CSRF.
     let cors = CorsLayer::new()
@@ -89,6 +95,23 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         .route("/events/{org_id}", get(sse_handler))
         .layer(cors)
         .with_state(state);
+
+    tokio::spawn({
+        async move {
+            let mut interval =
+                tokio::time::interval(Duration::from_secs(POOL_METRICS_INTERVAL_SEC));
+            loop {
+                interval.tick().await;
+                let status = redis_for_metrics.pool_status();
+
+                metrics::gauge!("redis.pool.size").set(status.size as f64);
+                metrics::gauge!("redis.pool.available").set(status.available as f64);
+
+                let active = status.size - status.available;
+                metrics::gauge!("redis.pool.active").set(active as f64);
+            }
+        }
+    });
 
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     println!("Running on http://{}", addr);
