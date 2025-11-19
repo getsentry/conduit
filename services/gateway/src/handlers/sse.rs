@@ -75,14 +75,12 @@ pub fn create_event_stream<R: RedisOperations>(
     org_id: u64,
     channel_id: Uuid,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
-    metrics::gauge!("connections.active").increment(1.0);
     struct ConnectionGuard;
     impl Drop for ConnectionGuard {
         fn drop(&mut self) {
             metrics::gauge!("connections.active").decrement(1.0);
         }
     }
-    let _guard = ConnectionGuard;
 
     let stream_key = StreamKey::new(org_id, channel_id);
     let stream_read_opts = StreamReadOptions::default()
@@ -92,7 +90,9 @@ pub fn create_event_stream<R: RedisOperations>(
     let mut consecutive_errors = 0;
 
     async_stream::stream! {
-        let _guard = _guard;
+        metrics::gauge!("connections.active").increment(1.0);
+        let _guard = ConnectionGuard;
+
         'outer: loop {
             let poll_start = std::time::Instant::now();
             let stream_events: StreamEvents = match redis.poll(&stream_key, &last_id, &stream_read_opts).await {

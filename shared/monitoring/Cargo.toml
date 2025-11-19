@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 axum = { workspace = true }
-metrics-exporter-statsd = { workspace = true }
+metrics-exporter-dogstatsd = { workspace = true }
 metrics = { workspace = true }
 sentry = { workspace = true }
 serde = { workspace = true }
