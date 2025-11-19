@@ -86,6 +86,19 @@ pub async fn publish_handler(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<String, (StatusCode, String)> {
+    struct LatencyGuard {
+        start: std::time::Instant,
+    }
+    impl Drop for LatencyGuard {
+        fn drop(&mut self) {
+            metrics::histogram!("handler.publish.latency_ms")
+                .record(self.start.elapsed().as_millis() as f64);
+        }
+    }
+    let _guard = LatencyGuard {
+        start: std::time::Instant::now(),
+    };
+
     let auth_header = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
