@@ -72,7 +72,15 @@ The following fields are used in the PublishRequest message ([see full proto def
 
 #### Payload Guidelines
 
-The `payload` field contains your application data and is typically used with DELTA phases. If payload is provided for other phases, they will NOT be processed by the client. Conduit places no restriction on payload content beyond being a valid JSON-like structure in the form of a `google/protobuf/struct.proto`.
+The `payload` field contains your application data and is typically used with DELTA phases. If payload is provided for other phases, they will NOT be processed by the client.
+
+**Size Limits:**
+
+- Maximum message size: 32KB (entire PublishRequest protobuf)
+- Messages exceeding this limit receive a 413 Payload Too Large response
+- For larger data, split into multiple DELTA messages
+
+The payload must be a valid JSON-like structure in the form of a `google/protobuf/struct.proto`.
 
 #### Example: Streaming "hello, world!"
 

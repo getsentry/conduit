@@ -20,6 +20,21 @@ Streams reaching `Phase::End` are:
 
 This prevents memory leaks from crashed clients or incomplete streams while allowing proper TTL-based cleanup for completed streams.
 
+## API Limits
+
+### Message Size
+
+Publish requests are limited to 32KB (configurable via `MAX_MESSAGE_SIZE_BYTES`).
+Requests exceeding this limit are rejected with `413 Payload Too Large`.
+
+Combined with the stream length limit of 500 messages, this bounds maximum stream size to approximately 16MB per stream.
+
+Publishers handling large data should chunk it into multiple DELTA messages within the START/DELTA/END streaming pattern.
+
+### Stream Length
+
+Streams are automatically trimmed to approximately 500 messages (configurable via `MAX_STREAM_LEN`). Older messages are removed as new ones arrive.
+
 ## Design Decisions
 
 ### Track-Before-Publish Order
