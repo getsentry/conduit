@@ -18,6 +18,7 @@ use crate::{
 
 const STREAM_TTL_SEC: i64 = 300; // 5 minutes
 const MAX_STREAM_LEN: usize = 500;
+const MAX_MESSAGE_SIZE_BYTES: usize = 32 * 1024; // 32KB
 
 async fn do_publish<R: RedisOperations>(
     redis: &R,
@@ -25,6 +26,20 @@ async fn do_publish<R: RedisOperations>(
     channel_id: Uuid,
     body: Bytes,
 ) -> Result<String, (StatusCode, String)> {
+    if body.len() > MAX_MESSAGE_SIZE_BYTES {
+        metrics::counter!("handler.publish_size_exceeded").increment(1);
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "Message size {} exceeds maximum of {} bytes",
+                body.len(),
+                MAX_MESSAGE_SIZE_BYTES
+            ),
+        ));
+    }
+
+    metrics::histogram!("handler.publish.message_size_bytes").record(body.len() as f64);
+
     let stream_event = PublishRequest::decode(body.clone())
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid protobuf".to_string()))?;
 
@@ -187,6 +202,20 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "stream-id-123");
+    }
+
+    #[tokio::test]
+    async fn test_publish_rejects_oversized_raw_bytes() {
+        let channel_id = Uuid::new_v4();
+        let mock_redis = MockRedisOperations::new();
+
+        let body = Bytes::from(vec![0u8; MAX_MESSAGE_SIZE_BYTES + 1000]);
+
+        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+
+        assert!(result.is_err());
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[tokio::test]
