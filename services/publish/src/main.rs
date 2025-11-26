@@ -8,7 +8,7 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use broker::{RedisClient, RedisOperations};
+use broker::{RedisClient, RedisOperations, StreamKey};
 use chrono::Utc;
 use dotenvy::dotenv;
 use monitoring::logging;
@@ -34,6 +34,10 @@ async fn cleanup_old_stream(
     let mut untracked = 0;
     let total = old_streams.len();
     for old_stream in old_streams {
+        let Some(stream_key) = StreamKey::from_redis_key(&old_stream) else {
+            tracing::warn!(key = %old_stream, "Invalid stream key format, skipping");
+            continue;
+        };
         match redis.delete_stream(&old_stream).await {
             Ok(res) => deleted += res,
             Err(e) => {
@@ -43,7 +47,7 @@ async fn cleanup_old_stream(
                 continue;
             }
         };
-        match redis.untrack_stream(&old_stream).await {
+        match redis.untrack_stream(&stream_key).await {
             Ok(res) => untracked += res,
             Err(e) => {
                 tracing::error!(error = %e, stream = ?old_stream, "Failed to untrack stream");
@@ -220,7 +224,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
 mod tests {
     use super::*;
     use broker::{Error as BrokerError, MockRedisOperations, StreamKey};
-    use mockall::predicate::eq;
+    use mockall::predicate::*;
     use redis::RedisError;
     use uuid::Uuid;
 
@@ -245,7 +249,9 @@ mod tests {
 
         mock_redis
             .expect_untrack_stream()
-            .with(eq(stream_key.clone()))
+            .with(function(move |key: &StreamKey| {
+                key.as_redis_key() == stream_key
+            }))
             .times(1)
             .returning(|_| Ok(1));
 
@@ -348,7 +354,9 @@ mod tests {
 
         mock_redis
             .expect_untrack_stream()
-            .with(eq(stream_key.clone()))
+            .with(function(move |key: &StreamKey| {
+                key.as_redis_key() == stream_key
+            }))
             .times(1)
             .returning(|_| {
                 Err(BrokerError::Redis(RedisError::from((

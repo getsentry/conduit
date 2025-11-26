@@ -1,6 +1,8 @@
+use std::hash::DefaultHasher;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use futures::future::join_all;
 use redis::streams::{StreamMaxlen, StreamReadOptions, StreamReadReply};
 use redis::{AsyncCommands, from_redis_value};
 
@@ -18,6 +20,17 @@ const DEFAULT_REDIS_POOL_WAIT_TIMEOUT_SECS: u64 = 5;
 const DEFAULT_REDIS_POOL_CREATE_TIMEOUT_SECS: u64 = 3;
 const DEFAULT_REDIS_POOL_RECYCLE_TIMEOUT_SECS: u64 = 3;
 
+const TRACKING_SHARDS: u64 = 64;
+
+fn tracking_shard_key(key: &StreamKey) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hasher: DefaultHasher = DefaultHasher::new();
+    key.org_id.hash(&mut hasher);
+    key.channel_id.hash(&mut hasher);
+    let shard = hasher.finish() % TRACKING_SHARDS;
+    format!("{}:{{{}}}", STREAM_TIMESTAMPS, shard)
+}
+
 pub struct StreamKey {
     org_id: u64,
     channel_id: Uuid,
@@ -30,6 +43,18 @@ impl StreamKey {
 
     pub fn as_redis_key(&self) -> String {
         format!("stream:{}:{}", self.org_id, self.channel_id)
+    }
+
+    pub fn from_redis_key(key: &str) -> Option<Self> {
+        let parts: Vec<&str> = key.split(":").collect();
+        if parts.len() != 3 || parts[0] != "stream" {
+            return None;
+        }
+
+        let org_id = parts[1].parse().ok()?;
+        let channel_id = Uuid::parse_str(parts[2]).ok()?;
+
+        Some(Self { org_id, channel_id })
     }
 }
 
@@ -110,7 +135,7 @@ pub trait RedisOperations: Send + Sync {
     ///
     /// # Returns
     /// Number of elements removed (1 if found, 0 if not present)
-    async fn untrack_stream(&self, key: &str) -> Result<usize>;
+    async fn untrack_stream(&self, key: &StreamKey) -> Result<usize>;
 
     /// Deletes the actual stream and all its messages from Redis.
     ///
@@ -225,23 +250,34 @@ impl RedisOperations for RedisClient {
 
     async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<usize> {
         let mut conn = self.pool.get().await?;
-        let res: usize = conn
-            .zadd(STREAM_TIMESTAMPS, key.as_redis_key(), timestamp)
-            .await?;
+        let shard_key = tracking_shard_key(key);
+        let res: usize = conn.zadd(shard_key, key.as_redis_key(), timestamp).await?;
         Ok(res)
     }
 
     async fn get_old_streams(&self, cutoff_timestamp: i64) -> Result<Vec<String>> {
-        let mut conn = self.pool.get().await?;
-        let old_streams: Vec<String> = conn
-            .zrangebyscore(STREAM_TIMESTAMPS, -f32::INFINITY, cutoff_timestamp)
-            .await?;
-        Ok(old_streams)
+        let futures = (0..TRACKING_SHARDS).map(|shard| async move {
+            let mut conn = self.pool.get().await?;
+            let shard_key = format!("{}:{{{}}}", STREAM_TIMESTAMPS, shard);
+            let streams: Vec<String> = conn
+                .zrangebyscore(&shard_key, f64::NEG_INFINITY, cutoff_timestamp)
+                .await?;
+            Ok(streams)
+        });
+
+        let results: Vec<Result<Vec<String>>> = join_all(futures).await;
+        let mut all_streams = Vec::new();
+        for result in results {
+            all_streams.extend(result?);
+        }
+
+        Ok(all_streams)
     }
 
-    async fn untrack_stream(&self, key: &str) -> Result<usize> {
+    async fn untrack_stream(&self, key: &StreamKey) -> Result<usize> {
         let mut conn = self.pool.get().await?;
-        let res: usize = conn.zrem(STREAM_TIMESTAMPS, key).await?;
+        let shard_key = tracking_shard_key(key);
+        let res: usize = conn.zrem(shard_key, key.as_redis_key()).await?;
         Ok(res)
     }
 

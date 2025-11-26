@@ -76,7 +76,7 @@ async fn do_publish<R: RedisOperations>(
             Ok(_) => {
                 // TTL is set, untrack so worker doesn't process it
                 metrics::counter!("ttl.set.success").increment(1);
-                if let Err(e) = redis.untrack_stream(&stream_key.as_redis_key()).await {
+                if let Err(e) = redis.untrack_stream(&stream_key).await {
                     metrics::counter!("untrack.failed").increment(1);
                     tracing::error!(error = %e, stream = ?stream_key.as_redis_key(), "Failed to untrack stream")
                 } else {
@@ -259,8 +259,8 @@ mod tests {
 
         mock_redis
             .expect_untrack_stream()
-            .with(function(move |key: &str| {
-                key == format!("stream:123:{}", channel_id)
+            .with(function(move |key: &StreamKey| {
+                key.as_redis_key() == format!("stream:123:{}", channel_id)
             }))
             .times(1)
             .returning(|_| Ok(1));
@@ -444,8 +444,8 @@ mod tests {
 
         mock_redis
             .expect_untrack_stream()
-            .with(function(move |key: &str| {
-                key == format!("stream:123:{}", channel_id)
+            .with(function(move |key: &StreamKey| {
+                key.as_redis_key() == format!("stream:123:{}", channel_id)
             }))
             .times(1)
             .returning(|_| {
