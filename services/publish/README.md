@@ -8,7 +8,7 @@ Each publish updates a stream's activity timestamp in Redis. This allows automat
 
 ### Cleanup Worker
 
-A background worker runs periodically (configurable via `CLEANUP_WORKER_INTERVAL_SEC`, default 300s) and deletes streams with no activity for a configurable duration (via `CLEANUP_STREAM_IDLE_SEC`, default 300s).
+A background worker runs periodically (configurable via `CLEANUP_WORKER_INTERVAL_SEC`, default 120s) and deletes streams with no activity for a configurable duration (via `CLEANUP_STREAM_IDLE_SEC`, default 120s).
 
 ### Phase::End Behavior
 
@@ -22,18 +22,34 @@ This prevents memory leaks from crashed clients or incomplete streams while allo
 
 ## API Limits
 
+### Rate Limiting
+
+Publishers are limited to 20 requests per second using a fixed-window counter in Redis.
+
+- Key: `rate_limit:channel:{org_id}:{channel_id}`
+- Window: 1 second
+- Enforced via a Lua script for atomicity
+
+Rate limiting runs before tracking/publishing to avoid wasted work. The `Retry-After` header tells clients when to retry.
+
+Rate limiting fails closed intentionally since if Redis is having issues with rate limits, it likely isn't going to be able to handle the streams.
+
+**Relationship to stream size:**
+
+At 20/sec with 1200 message streams, consumers have ~60 seconds to recover from disconnections.
+
 ### Message Size
 
-Publish requests are limited to 32KB (configurable via `MAX_MESSAGE_SIZE_BYTES`).
+Publish requests are limited to 16KB.
 Requests exceeding this limit are rejected with `413 Payload Too Large`.
 
-Combined with the stream length limit of 500 messages, this bounds maximum stream size to approximately 16MB per stream.
+Combined with the stream length limit of 1200 messages, this bounds maximum stream size to approximately 19.2MB per stream.
 
 Publishers handling large data should chunk it into multiple DELTA messages within the START/DELTA/END streaming pattern.
 
 ### Stream Length
 
-Streams are automatically trimmed to approximately 500 messages (configurable via `MAX_STREAM_LEN`). Older messages are removed as new ones arrive.
+Streams are automatically trimmed to approximately 1200 messages. Older messages are removed as new ones arrive.
 
 ## Design Decisions
 
@@ -55,3 +71,5 @@ Both `CLEANUP_WORKER_INTERVAL_SEC` and `CLEANUP_STREAM_IDLE_SEC` can be tuned in
 ### Known Edge Cases
 
 - **Sorted set bloat**: If untrack operations consistently fail, the sorted set accumulates entries for already deleted streams. The worker will attempt to delete non-existent streams (harmless) but the sorted set grows. If this becomes a problem, we can add a periodic SCAN to remove ghost entries.
+
+- **Rate Limit Leak**: If EXPIRE fails after INCR succeeds, the rate limit key persists without a TTL. This is unlikely but not impossible.

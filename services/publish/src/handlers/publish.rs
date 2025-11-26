@@ -1,7 +1,8 @@
 use axum::{
     body::Bytes,
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
+    response::{IntoResponse, Response},
 };
 use broker::{RedisOperations, StreamKey};
 use chrono::Utc;
@@ -16,9 +17,11 @@ use crate::{
     state::AppState,
 };
 
-const STREAM_TTL_SEC: i64 = 300; // 5 minutes
-const MAX_STREAM_LEN: usize = 500;
-const MAX_MESSAGE_SIZE_BYTES: usize = 32 * 1024; // 32KB
+const STREAM_TTL_SEC: i64 = 120; // 2 minutes
+const MAX_STREAM_LEN: usize = 1200;
+const MAX_MESSAGE_SIZE_BYTES: usize = 16 * 1024; // 16KB
+const MAX_PUBLISH_RATE_PER_CHANNEL: usize = 20; // 20 publishes
+const RATE_LIMIT_WINDOW_SEC: i64 = 1; // per 1 sec
 
 async fn do_publish<R: RedisOperations>(
     redis: &R,
@@ -34,6 +37,41 @@ async fn do_publish<R: RedisOperations>(
                 "Message size {} exceeds maximum of {} bytes",
                 body.len(),
                 MAX_MESSAGE_SIZE_BYTES
+            ),
+        ));
+    }
+
+    let channel_rate_limit_key = format!("rate_limit:channel:{}:{}", org_id, channel_id);
+    let allowed = redis
+        .check_rate_limit(
+            &channel_rate_limit_key,
+            MAX_PUBLISH_RATE_PER_CHANNEL,
+            RATE_LIMIT_WINDOW_SEC
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, org_id = %org_id, channel_id = %channel_id, "Failed to check per-channel rate limit");
+            metrics::counter!("handler.rate_limit_check.failed").increment(1);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to check rate limit".to_string(),
+            )
+        })?;
+
+    if !allowed {
+        metrics::counter!("handler.publish_rate_limited.channel").increment(1);
+        tracing::warn!(
+            org_id = %org_id,
+            channel_id = %channel_id,
+            limit = MAX_PUBLISH_RATE_PER_CHANNEL,
+            window = RATE_LIMIT_WINDOW_SEC,
+            "Channel rate limit exceeded"
+        );
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            format!(
+                "Rate limit exceeded: maximum {} requests per {} second(s) per channel",
+                MAX_PUBLISH_RATE_PER_CHANNEL, RATE_LIMIT_WINDOW_SEC
             ),
         ));
     }
@@ -100,7 +138,7 @@ pub async fn publish_handler(
     Path((org_id, channel_id)): Path<(u64, Uuid)>,
     headers: HeaderMap,
     body: Bytes,
-) -> Result<String, (StatusCode, String)> {
+) -> Response {
     struct LatencyGuard {
         start: std::time::Instant,
     }
@@ -114,34 +152,55 @@ pub async fn publish_handler(
         start: std::time::Instant::now(),
     };
 
-    let auth_header = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .ok_or((
-            StatusCode::UNAUTHORIZED,
-            "Missing authorization header".to_string(),
-        ))?;
+    let auth_header = match headers.get("authorization").and_then(|v| v.to_str().ok()) {
+        Some(h) => h,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                "Missing authorization header".to_string(),
+            )
+                .into_response();
+        }
+    };
 
-    let token = auth_header.strip_prefix("Bearer ").ok_or((
-        StatusCode::UNAUTHORIZED,
-        "Invalid authorization format".to_string(),
-    ))?;
+    let token = match auth_header.strip_prefix("Bearer ") {
+        Some(t) => t,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                "Invalid authorization format".to_string(),
+            )
+                .into_response();
+        }
+    };
 
-    validate_token(
+    if let Err(e) = validate_token(
         token,
         state.jwt_config.secret.as_bytes(),
         &state.jwt_config.expected_issuer,
         &state.jwt_config.expected_audience,
-    )
-    .map_err(|e| match e {
-        JwtValidationError::TokenExpired => (StatusCode::UNAUTHORIZED, "Token expired".to_string()),
-        JwtValidationError::ValidationFailed(_) => (
-            StatusCode::UNAUTHORIZED,
-            "Token validation failed".to_string(),
-        ),
-    })?;
+    ) {
+        let message = match e {
+            JwtValidationError::TokenExpired => "Token expired".to_string(),
+            JwtValidationError::ValidationFailed(_) => "Token validation failed".to_string(),
+        };
+        return (StatusCode::UNAUTHORIZED, message).into_response();
+    };
 
-    do_publish(&state.redis, org_id, channel_id, body).await
+    match do_publish(&state.redis, org_id, channel_id, body).await {
+        Ok(stream_id) => stream_id.into_response(),
+        Err((status, message)) => {
+            let mut response = (status, message).into_response();
+
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                response
+                    .headers_mut()
+                    .insert(header::RETRY_AFTER, header::HeaderValue::from_static("1"));
+            }
+
+            response
+        }
+    }
 }
 
 #[cfg(test)]
@@ -157,6 +216,11 @@ mod tests {
     async fn test_publish_success() {
         let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_check_rate_limit()
+            .times(1)
+            .returning(|_, _, _| Ok(true));
 
         mock_redis
             .expect_track_stream_update()
@@ -222,6 +286,11 @@ mod tests {
     async fn test_publish_ttl_on_end() {
         let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_check_rate_limit()
+            .times(1)
+            .returning(|_, _, _| Ok(true));
 
         mock_redis
             .expect_track_stream_update()
@@ -292,6 +361,11 @@ mod tests {
         let mut mock_redis = MockRedisOperations::new();
 
         mock_redis
+            .expect_check_rate_limit()
+            .times(1)
+            .returning(|_, _, _| Ok(true));
+
+        mock_redis
             .expect_track_stream_update()
             .with(
                 function(move |key: &StreamKey| {
@@ -340,6 +414,11 @@ mod tests {
     async fn test_publish_end_ttl_fails_stays_tracked() {
         let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_check_rate_limit()
+            .times(1)
+            .returning(|_, _, _| Ok(true));
 
         mock_redis
             .expect_track_stream_update()
@@ -407,6 +486,11 @@ mod tests {
     async fn test_publish_end_untrack_fails_still_succeeds() {
         let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_check_rate_limit()
+            .times(1)
+            .returning(|_, _, _| Ok(true));
 
         mock_redis
             .expect_track_stream_update()
@@ -478,11 +562,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_publish_invalid_protobuf() {
-        let mock_redis = MockRedisOperations::new();
+        let channel_id = Uuid::new_v4();
+        let mut mock_redis = MockRedisOperations::new();
 
         let body = Bytes::from(vec![255, 255, 255, 255]);
 
-        let result = do_publish(&mock_redis, 123, Uuid::new_v4(), body).await;
+        mock_redis
+            .expect_check_rate_limit()
+            .times(1)
+            .returning(|_, _, _| Ok(true));
+
+        let result = do_publish(&mock_redis, 123, channel_id, body).await;
 
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();
@@ -494,6 +584,11 @@ mod tests {
     async fn test_publish_xadd_error() {
         let channel_id = Uuid::new_v4();
         let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_check_rate_limit()
+            .times(1)
+            .returning(|_, _, _| Ok(true));
 
         mock_redis
             .expect_track_stream_update()
@@ -537,5 +632,92 @@ mod tests {
         let (status, msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(msg, "Failed to publish message to stream");
+    }
+
+    #[tokio::test]
+    async fn test_publish_channel_rate_limit_exceeded() {
+        let channel_id = Uuid::new_v4();
+        let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_check_rate_limit()
+            .withf(move |key, limit, _| {
+                key.contains("rate_limit:channel:123")
+                    && key.contains(&channel_id.to_string())
+                    && *limit == MAX_PUBLISH_RATE_PER_CHANNEL
+            })
+            .times(1)
+            .returning(|_, _, _| Ok(false));
+
+        mock_redis.expect_track_stream_update().never();
+        mock_redis.expect_publish().never();
+
+        let request = PublishRequest {
+            channel_id: channel_id.to_string(),
+            message_id: Uuid::new_v4().to_string(),
+            client_timestamp: Some(Timestamp {
+                seconds: 1736467200,
+                nanos: 0,
+            }),
+            phase: Phase::Delta.into(),
+            sequence: 2,
+            payload: Some(Struct {
+                fields: std::collections::BTreeMap::new(),
+            }),
+        };
+        let body = Bytes::from(request.encode_to_vec());
+
+        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+
+        assert!(result.is_err());
+        let (status, msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+        assert!(msg.contains("Rate limit exceeded"));
+    }
+
+    #[tokio::test]
+    async fn test_publish_channel_rate_limit_failed() {
+        let channel_id = Uuid::new_v4();
+        let mut mock_redis = MockRedisOperations::new();
+
+        mock_redis
+            .expect_check_rate_limit()
+            .withf(move |key, limit, _| {
+                key.contains("rate_limit:channel:123")
+                    && key.contains(&channel_id.to_string())
+                    && *limit == MAX_PUBLISH_RATE_PER_CHANNEL
+            })
+            .times(1)
+            .returning(|_, _, _| {
+                Err(BrokerError::Redis(redis::RedisError::from((
+                    redis::ErrorKind::IoError,
+                    "Connection lost",
+                ))))
+            });
+
+        mock_redis.expect_track_stream_update().never();
+        mock_redis.expect_publish().never();
+
+        let request = PublishRequest {
+            channel_id: channel_id.to_string(),
+            message_id: Uuid::new_v4().to_string(),
+            client_timestamp: Some(Timestamp {
+                seconds: 1736467200,
+                nanos: 0,
+            }),
+            phase: Phase::Delta.into(),
+            sequence: 2,
+            payload: Some(Struct {
+                fields: std::collections::BTreeMap::new(),
+            }),
+        };
+        let body = Bytes::from(request.encode_to_vec());
+
+        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+
+        assert!(result.is_err());
+        let (status, msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(msg, "Failed to check rate limit");
     }
 }
