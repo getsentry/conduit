@@ -29,14 +29,14 @@ style C fill:#e1f5fe
 
 ### Stream Management
 
-Streams are automatically tracked and cleaned up after inactivity (configurable via `CLEANUP_STREAM_IDLE_SEC`, default 300s).
+Streams are automatically tracked and cleaned up after inactivity (configurable via `CLEANUP_STREAM_IDLE_SEC`, default 120s).
 This prevents memory leaks from:
 
 - Crashed or disconnected publishers
 - Streams that never reach Phase::End
 - Network failures during publishing
 
-A cleanup worker runs periodically (configurable via `CLEANUP_WORKER_INTERVAL_SEC`, default 300s), deleting streams that haven't received any publishes within the inactivity threshold. Active streams (receiving regular publishes) are kept alive indefinitely, supporting long-running or continuous streaming use cases.
+A cleanup worker runs periodically (configurable via `CLEANUP_WORKER_INTERVAL_SEC`, default 120s), deleting streams that haven't received any publishes within the inactivity threshold. Active streams (receiving regular publishes) are kept alive indefinitely, supporting long-running or continuous streaming use cases.
 
 **Note:** While streams themselves are unbounded in duration, client connections (on the Gateway service) may have separate timeout limits. This allows clients to reconnect to ongoing streams as needed.
 
@@ -76,11 +76,19 @@ The `payload` field contains your application data and is typically used with DE
 
 **Size Limits:**
 
-- Maximum message size: 32KB (entire PublishRequest protobuf)
+- Maximum message size: 16KB (entire PublishRequest protobuf)
 - Messages exceeding this limit receive a 413 Payload Too Large response
 - For larger data, split into multiple DELTA messages
 
 The payload must be a valid JSON-like structure in the form of a `google/protobuf/struct.proto`.
+
+**Rate Limits:**
+
+- Maximum 20 requests per second per channel
+- Exceeding returns `429 Too Many Requests` with `Retry-After` header
+- High-frequency publishers should batch messages
+
+**Retention:** Streams hold up to approximately 1200 messages. At maximum publish rate, this provides ~60 seconds of history to consumers to catch up after brief disconnections.
 
 #### Example: Streaming "hello, world!"
 

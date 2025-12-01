@@ -141,6 +141,8 @@ pub trait RedisOperations: Send + Sync {
     /// # Returns
     /// Number of streams deleted
     async fn delete_stream(&self, key: &str) -> Result<usize>;
+
+    async fn check_rate_limit(&self, key: &str, limit: usize, window_secs: i64) -> Result<bool>;
 }
 
 #[derive(Clone)]
@@ -281,5 +283,27 @@ impl RedisOperations for RedisClient {
         let mut conn = self.pool.get().await?;
         let res: usize = conn.del(key).await?;
         Ok(res)
+    }
+
+    async fn check_rate_limit(&self, key: &str, limit: usize, window_secs: i64) -> Result<bool> {
+        let mut conn = self.pool.get().await?;
+
+        let script = redis::Script::new(
+            r#"
+            local current = redis.call('INCR', KEYS[1])
+            if current == 1 then
+                redis.call('EXPIRE', KEYS[1], ARGV[1])
+            end
+            return current
+        "#,
+        );
+
+        let count: usize = script
+            .key(key)
+            .arg(window_secs)
+            .invoke_async(&mut *conn)
+            .await?;
+
+        Ok(count <= limit)
     }
 }
