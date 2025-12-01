@@ -6,9 +6,11 @@ edition.workspace = true
 [dependencies]
 async-trait = { workspace = true }
 deadpool-redis = { workspace = true }
+futures = { workspace = true }
 metrics = { workspace = true }
 mockall = { workspace = true }
 redis = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }
+xxhash-rust = { workspace = true }

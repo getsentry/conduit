@@ -64,12 +64,20 @@ If tracking fails, the publish is aborted. This assumes:
 
 If a tracking failure occurs on an existing stream close to the cleanup threshold, the publisher's retry will update the timestamp and prevent premature deletion.
 
+### Stream Tracking Sharding
+
+Stream activity is tracked across 64 sharded sorted sets (`stream_timestamps:{0}` through `stream_timestamps:{63}`) rather than a single sorted set. This distributes write load across the Redis Cluster slots.
+
+The shard is determined by hashing the `org_id + channel_id`. The shard count is fixed at 64 which should give us more than enough headroom. Changing it would orphan tracked streams in old shards until they (hopefully) expire naturally.
+
+The cleanup worker queries all 64 shards in parallel when looking for inactive streams.
+
 ### Worker Intervals
 
 Both `CLEANUP_WORKER_INTERVAL_SEC` and `CLEANUP_STREAM_IDLE_SEC` can be tuned independently based on operational needs.
 
 ### Known Edge Cases
 
-- **Sorted set bloat**: If untrack operations consistently fail, the sorted set accumulates entries for already deleted streams. The worker will attempt to delete non-existent streams (harmless) but the sorted set grows. If this becomes a problem, we can add a periodic SCAN to remove ghost entries.
+- **Sorted sets bloat**: If untrack operations consistently fail, the sorted sets accumulate entries for already deleted streams. The worker will attempt to delete non-existent streams (harmless) but the sorted sets grow. If this becomes a problem, we can add a periodic SCAN to remove ghost entries.
 
 - **Rate Limit Leak**: If EXPIRE fails after INCR succeeds, the rate limit key persists without a TTL. This is unlikely but not impossible.
