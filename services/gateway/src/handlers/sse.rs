@@ -1,3 +1,4 @@
+use http::HeaderMap;
 use prost::Message;
 use prost_types::value::Kind;
 use serde_json::json;
@@ -25,6 +26,9 @@ use crate::{
     auth::{TokenValidationError, validate_token},
     state::AppState,
 };
+
+const SSE_DEFAULT_RETRY_MS: Duration = Duration::from_millis(500);
+const SSE_ERROR_RETRY_MS: Duration = Duration::from_secs(3);
 
 const STREAM_BLOCK_MS: usize = 1000;
 const STREAM_MAX_EVENTS: usize = 20;
@@ -74,6 +78,7 @@ pub fn create_event_stream<R: RedisOperations>(
     redis: Arc<R>,
     org_id: u64,
     channel_id: Uuid,
+    last_event_id: Option<String>,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
     struct ConnectionGuard;
     impl Drop for ConnectionGuard {
@@ -86,12 +91,16 @@ pub fn create_event_stream<R: RedisOperations>(
     let stream_read_opts = StreamReadOptions::default()
         .block(STREAM_BLOCK_MS)
         .count(STREAM_MAX_EVENTS);
-    let mut last_id = "0-0".to_string();
+    let mut last_id = last_event_id.unwrap_or_else(|| "0-0".to_string());
     let mut consecutive_errors = 0;
 
     async_stream::stream! {
         metrics::gauge!("connections.active").increment(1.0);
         let _guard = ConnectionGuard;
+
+        yield Ok(Event::default()
+            .retry(SSE_DEFAULT_RETRY_MS)
+        );
 
         'outer: loop {
             let poll_start = std::time::Instant::now();
@@ -111,6 +120,7 @@ pub fn create_event_stream<R: RedisOperations>(
                         // TODO: use a proper event schema
                         yield Ok(Event::default()
                             .event("error")
+                            .retry(SSE_ERROR_RETRY_MS)
                             .data("Too many errors, closing stream"));
                         metrics::counter!("connections.closed.error_limit").increment(1);
                         break 'outer;
@@ -197,10 +207,12 @@ pub fn create_event_stream<R: RedisOperations>(
 pub struct SSEQuery {
     channel_id: Uuid,
     token: String,
+    last_event_id: Option<String>,
 }
 
 #[instrument(skip_all, fields(org_id = %org_id, channel_id = %q.channel_id))]
 pub async fn sse_handler(
+    headers: HeaderMap,
     State(state): State<AppState>,
     Path(org_id): Path<u64>,
     Query(q): Query<SSEQuery>,
@@ -234,7 +246,18 @@ pub async fn sse_handler(
 
     metrics::counter!("connections.total").increment(1);
 
-    let stream = create_event_stream(Arc::new(state.redis), claims.org_id, claims.channel_id);
+    let last_event_id = headers
+        .get("last-event-id")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+        .or(q.last_event_id);
+
+    let stream = create_event_stream(
+        Arc::new(state.redis),
+        claims.org_id,
+        claims.channel_id,
+        last_event_id,
+    );
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::new()))
 }
@@ -453,14 +476,19 @@ mod tests {
                 })
             });
 
-            let mut stream = Box::pin(create_event_stream(Arc::new(mock_redis), 123, channel_id));
+            let mut stream = Box::pin(create_event_stream(
+                Arc::new(mock_redis),
+                123,
+                channel_id,
+                None,
+            ));
 
             let mut events = vec![];
             while let Some(result) = stream.next().await {
                 events.push(result.expect("Event should be Ok"));
             }
 
-            assert_eq!(events.len(), 3);
+            assert_eq!(events.len(), 4);
         }
 
         #[tokio::test]
@@ -480,6 +508,7 @@ mod tests {
                 Arc::new(mock_redis),
                 123,
                 Uuid::new_v4(),
+                None,
             ));
 
             let mut events = vec![];
@@ -487,8 +516,8 @@ mod tests {
                 events.push(result.expect("Event should be Ok"));
             }
 
-            // Only one event is expected: error
-            assert_eq!(events.len(), 1);
+            // Only two events are expected: retry and error
+            assert_eq!(events.len(), 2);
         }
 
         #[tokio::test]
@@ -518,14 +547,19 @@ mod tests {
                 })
             });
 
-            let mut stream = Box::pin(create_event_stream(Arc::new(mock_redis), 123, channel_id));
+            let mut stream = Box::pin(create_event_stream(
+                Arc::new(mock_redis),
+                123,
+                channel_id,
+                None,
+            ));
 
             let mut events = vec![];
             while let Some(result) = stream.next().await {
                 events.push(result.expect("Event should be Ok"));
             }
 
-            assert_eq!(events.len(), 1);
+            assert_eq!(events.len(), 2);
         }
 
         #[tokio::test]
@@ -576,13 +610,60 @@ mod tests {
                 })
             });
 
-            let mut stream = Box::pin(create_event_stream(Arc::new(mock_redis), 123, channel_id));
+            let mut stream = Box::pin(create_event_stream(
+                Arc::new(mock_redis),
+                123,
+                channel_id,
+                None,
+            ));
 
             let mut events = vec![];
             while let Some(result) = stream.next().await {
                 events.push(result.expect("Event should be Ok"));
             }
 
+            assert_eq!(events.len(), 3);
+        }
+
+        #[tokio::test]
+        async fn test_create_event_stream_resumes_from_last_event_id() {
+            let channel_id = Uuid::new_v4();
+            let end_publish_request = PublishRequest {
+                message_id: Uuid::new_v4().to_string(),
+                channel_id: channel_id.to_string(),
+                phase: Phase::End.into(),
+                sequence: 1,
+                client_timestamp: Some(Timestamp {
+                    seconds: 1736467600,
+                    nanos: 0,
+                }),
+                payload: Some(Struct {
+                    fields: BTreeMap::new(),
+                }),
+            };
+
+            let mut mock_redis = MockRedisOperations::new();
+            mock_redis
+                .expect_poll()
+                .withf(|_, last_id, _| last_id == "5-0")
+                .returning(move |_, _, _| {
+                    Ok(StreamEvents {
+                        events: vec![("6-0".to_string(), end_publish_request.encode_to_vec())],
+                    })
+                });
+            let mut stream = Box::pin(create_event_stream(
+                Arc::new(mock_redis),
+                123,
+                channel_id,
+                Some("5-0".to_string()),
+            ));
+
+            let mut events = vec![];
+            while let Some(result) = stream.next().await {
+                events.push(result.expect("event should be Ok"));
+            }
+
+            // retry + end event
             assert_eq!(events.len(), 2);
         }
     }
