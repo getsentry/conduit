@@ -43,12 +43,12 @@ impl CleanupConfig {
         let worker_interval_sec = env::var("CLEANUP_WORKER_INTERVAL_SEC")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(300); // Default: 5 minutes
+            .unwrap_or(120); // Default: 2 minutes
 
         let stream_idle_sec = env::var("CLEANUP_STREAM_IDLE_SEC")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(300); // Default: 5 minutes
+            .unwrap_or(120); // Default: 2 minutes
 
         Ok(Self {
             worker_interval_sec,
