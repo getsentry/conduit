@@ -13,3 +13,4 @@ redis = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }
+xxhash-rust = { workspace = true }

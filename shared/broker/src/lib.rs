@@ -1,19 +1,18 @@
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::future::join_all;
 use redis::streams::{StreamMaxlen, StreamReadOptions, StreamReadReply};
 use redis::{AsyncCommands, from_redis_value};
+use xxhash_rust::xxh3::xxh3_64;
 
 use mockall::automock;
 use uuid::Uuid;
 
 const STREAM_DATA_FIELD: &str = "data";
 
-// Single sorted set tracks all stream activity. Could be a write hotspot in Redis Cluster at very high scale.
-// Consider sharding the set if ZADD becomes a bottleneck.
+// Base key for stream activity tracking.
+// Sharded into TRACKING_SHARDS sorted sets to distribute load across redis cluster hash slots.
 const STREAM_TIMESTAMPS: &str = "stream_timestamps";
 
 const DEFAULT_REDIS_POOL_MAX_SIZE: usize = 256;
@@ -24,10 +23,7 @@ const DEFAULT_REDIS_POOL_RECYCLE_TIMEOUT_SECS: u64 = 3;
 const TRACKING_SHARDS: u64 = 64;
 
 fn tracking_shard_key(key: &StreamKey) -> String {
-    let mut hasher: DefaultHasher = DefaultHasher::new();
-    key.org_id.hash(&mut hasher);
-    key.channel_id.hash(&mut hasher);
-    let shard = hasher.finish() % TRACKING_SHARDS;
+    let shard = xxh3_64(key.as_redis_key().as_bytes()) % TRACKING_SHARDS;
     format!("{}:{{{}}}", STREAM_TIMESTAMPS, shard)
 }
 
