@@ -1,4 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -23,7 +24,6 @@ const DEFAULT_REDIS_POOL_RECYCLE_TIMEOUT_SECS: u64 = 3;
 const TRACKING_SHARDS: u64 = 64;
 
 fn tracking_shard_key(key: &StreamKey) -> String {
-    use std::hash::{Hash, Hasher};
     let mut hasher: DefaultHasher = DefaultHasher::new();
     key.org_id.hash(&mut hasher);
     key.channel_id.hash(&mut hasher);
