@@ -6,17 +6,13 @@
 
 Each publish updates a stream's activity timestamp in Redis. This allows automatic cleanup of abandoned streams.
 
-### Cleanup Worker
-
-A background worker runs periodically (configurable via `CLEANUP_WORKER_INTERVAL_SEC`, default 120s) and deletes streams with no activity for a configurable duration (via `CLEANUP_STREAM_IDLE_SEC`, default 120s).
-
 ### Phase::End Behavior
 
 Streams reaching `Phase::End` are:
 
 1. Set to expire after `STREAM_TTL_SEC` seconds via Redis TTL
-2. Untracked from the cleanup worker (if TTL succeeds)
-3. Cleaned up by the worker if TTL setting fails (fallback)
+2. Untracked from the cleanup service (if TTL succeeds)
+3. Cleaned up by the cleanup service if TTL setting fails (fallback)
 
 This prevents memory leaks from crashed clients or incomplete streams while allowing proper TTL-based cleanup for completed streams.
 
@@ -70,14 +66,10 @@ Stream activity is tracked across 64 sharded sorted sets (`stream_timestamps:{0}
 
 The shard is determined by hashing the `org_id + channel_id`. The shard count is fixed at 64 which should give us more than enough headroom. Changing it would orphan tracked streams in old shards until they (hopefully) expire naturally.
 
-The cleanup worker queries all 64 shards in parallel when looking for inactive streams.
-
-### Worker Intervals
-
-Both `CLEANUP_WORKER_INTERVAL_SEC` and `CLEANUP_STREAM_IDLE_SEC` can be tuned independently based on operational needs.
+The cleanup service queries all 64 shards in parallel when looking for inactive streams.
 
 ### Known Edge Cases
 
-- **Sorted sets bloat**: If untrack operations consistently fail, the sorted sets accumulate entries for already deleted streams. The worker will attempt to delete non-existent streams (harmless) but the sorted sets grow. If this becomes a problem, we can add a periodic SCAN to remove ghost entries.
+- **Sorted sets bloat**: If untrack operations consistently fail, the sorted sets accumulate entries for already deleted streams. The cleanup service will attempt to delete non-existent streams (harmless) but the sorted sets grow. If this becomes a problem, we can add a periodic SCAN to remove ghost entries.
 
 - **Rate Limit Leak**: If EXPIRE fails after INCR succeeds, the rate limit key persists without a TTL. This is unlikely but not impossible.

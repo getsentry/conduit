@@ -118,7 +118,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
 
     let listener = TcpListener::bind(addr).await?;
     axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
+        .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
             eprintln!("Shutting down...");
         })

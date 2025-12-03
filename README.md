@@ -8,6 +8,7 @@ Conduit is built as a Rust workspace consisting of multiple services that work t
 
 - **Gateway Service**: Handles client connections and delivers real-time data streams via SSE
 - **Publish Service**: Accepts data from upstream services and publishes it to the appropriate streams
+- **Cleanup Service**: Periodically cleans up abandoned streams
 - **Broker**: Shared library for Redis-based message brokering between services
 
 ## Architecture
@@ -36,11 +37,11 @@ This prevents memory leaks from:
 - Streams that never reach Phase::End
 - Network failures during publishing
 
-A cleanup worker runs periodically (configurable via `CLEANUP_WORKER_INTERVAL_SEC`, default 120s), deleting streams that haven't received any publishes within the inactivity threshold. Active streams (receiving regular publishes) are kept alive indefinitely, supporting long-running or continuous streaming use cases.
+The cleanup service periodically scans for and deletes streams that haven't received any publishes within the inactivity threshold (scan interval configurable via `CLEANUP_INTERVAL_SEC`, default 120s). Active streams (receiving regular publishes) are kept alive indefinitely, supporting long-running or continuous streaming use cases.
 
 **Note:** While streams themselves are unbounded in duration, client connections (on the Gateway service) may have separate timeout limits. This allows clients to reconnect to ongoing streams as needed.
 
-When publishers signal stream completion by sending Phase::End, the stream is expired via Redis TTL. If TTL setting fails, the cleanup worker handles deletion as a fallback.
+When publishers signal stream completion by sending Phase::End, the stream is expired via Redis TTL. If TTL setting fails, the cleanup service handles deletion as a fallback.
 
 **Note:** Publishers should implement retry logic for transient failures. The platform is designed for high frequency real-time streaming where retrying is a standard practice.
 

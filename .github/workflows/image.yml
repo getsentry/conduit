@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
-        service: [gateway, publish]
+        service: [gateway, publish, cleanup]
         target: [prod, dev]
         include:
           - os: ubuntu-24.04
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [gateway, publish]
+        service: [gateway, publish, cleanup]
     needs: [build]
     if: ${{ (github.ref_name == 'main' || startsWith(github.ref_name, 'releases/')) && github.event_name != 'pull_request' }}
     permissions:
@@ -69,7 +69,7 @@ jobs:
             --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:latest \
             ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-amd64 \
             ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-arm64
-          
+
           # Dev manifests
           docker buildx imagetools create \
             --tag ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.event.pull_request.head.sha || github.sha }}-dev \
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [gateway, publish]
+        service: [gateway, publish, cleanup]
     needs: [assemble]
     if: ${{ (github.ref_name == 'main' || startsWith(github.ref_name, 'releases/')) && github.event_name != 'pull_request' }}
     permissions:
