@@ -122,7 +122,12 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     println!("Running on http://{}", addr);
 
     let listener = TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            let _ = tokio::signal::ctrl_c().await;
+            eprintln!("Shutting down...");
+        })
+        .await?;
 
     Ok(())
 }
