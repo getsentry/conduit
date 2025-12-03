@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "services/cleanup",
   "services/gateway",
   "services/publish",
   "shared/broker", "shared/monitoring",
