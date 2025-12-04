@@ -101,11 +101,15 @@ jobs:
           version: ">= 390.0.0"
 
       - name: Configure Docker
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+          gcloud auth configure-docker us-docker.pkg.dev
 
       - name: Copy manifest from GHCR to GAR
         run: |
           docker buildx imagetools create \
             --tag us-central1-docker.pkg.dev/sentryio/conduit/conduit-${{ matrix.service }}:${{ github.sha }} \
             --tag us-central1-docker.pkg.dev/sentryio/conduit/conduit-${{ matrix.service }}:latest \
+            --tag us-docker.pkg.dev/sentryio/conduit-mr/conduit-${{ matrix.service }}:${{ github.sha }} \
+            --tag us-docker.pkg.dev/sentryio/conduit-mr/conduit-${{ matrix.service }}:latest \
             ghcr.io/getsentry/conduit-${{ matrix.service }}:${{ github.sha }}
