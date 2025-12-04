@@ -17,7 +17,7 @@ x-sentry-service-config:
 
 x-programs:
   devserver:
-    command: sh -c 'cargo run --bin gateway & cargo run --bin publish'
+    command: sh -c 'cargo run --bin gateway & cargo run --bin publish & cargo run --bin cleanup'
 
 services:
   gateway:
