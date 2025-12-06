@@ -20,12 +20,14 @@ graph LR
     R --> |XREAD| GW[Gateway<br/>Service]
     C[Client<br/>Browser] -.-> |GET /events| GW
     GW ==> |SSE| C[Client<br/>Browser]
+    CS[Cleanup<br/>Service] --> |DEL| R
 
 style P fill:#e1f5fe
 style PS fill:#81c784
 style R fill:#ff8a65
 style GW fill:#81c784
 style C fill:#e1f5fe
+style CS fill:#81c784
 ```
 
 ### Stream Management
