@@ -4,12 +4,6 @@ local pipedream = import 'github.com/getsentry/gocd-jsonnet/libs/pipedream.libso
 local pipedream_config = {
   name: 'conduit',
   auto_deploy: true,
-  exclude_regions: [
-    'customer-1',
-    'customer-2',
-    'customer-4',
-    'customer-7',
-  ],
   materials: {
     conduit_repo: {
       git: 'git@github.com:getsentry/conduit.git',
