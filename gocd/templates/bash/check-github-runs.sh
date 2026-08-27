@@ -1,6 +1,6 @@
 #!/bin/bash
 
-checks-githubactions-checkruns \
+checks-githubactions-checkruns2 \
   getsentry/conduit \
   "${GO_REVISION_CONDUIT_REPO}" \
   "build-gateway-prod-amd64" \
