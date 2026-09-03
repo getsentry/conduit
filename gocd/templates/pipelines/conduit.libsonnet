@@ -23,7 +23,8 @@ function(region) {
             timeout: 10,
             elastic_profile_id: 'conduit',
             environment_variables: {
-              GITHUB_TOKEN: '{{SECRET:[devinfra-github][token]}}',
+              GITHUB_APP_ID: '{{SECRET:[devinfra-github][app_id]}}',
+              GITHUB_APP_PRIVATE_KEY: '{{SECRET:[devinfra-github][private_key]}}',
             },
             tasks: [
               gocdtasks.script(importstr '../bash/check-github-runs.sh'),
