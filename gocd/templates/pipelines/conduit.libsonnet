@@ -2,6 +2,9 @@ local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libs
 
 function(region) {
   environment_variables: {
+    // k8s-deploy dispatches GitHub workflows using these App credentials.
+    GITHUB_APP_ID: '{{SECRET:[devinfra-github][app_id]}}',
+    GITHUB_APP_PRIVATE_KEY: '{{SECRET:[devinfra-github][private_key]}}',
     // SENTRY_REGION is used by the dev-infra scripts to connect to GKE
     SENTRY_REGION: region,
   },
@@ -22,10 +25,6 @@ function(region) {
           checks: {
             timeout: 10,
             elastic_profile_id: 'conduit',
-            environment_variables: {
-              GITHUB_APP_ID: '{{SECRET:[devinfra-github][app_id]}}',
-              GITHUB_APP_PRIVATE_KEY: '{{SECRET:[devinfra-github][private_key]}}',
-            },
             tasks: [
               gocdtasks.script(importstr '../bash/check-github-runs.sh'),
             ],
