@@ -5,12 +5,8 @@ local pipedream_config = {
   name: 'conduit',
   auto_deploy: true,
   exclude_regions: [
-    'us',
-    'de',
-    'customer-1',
-    'customer-2',
+    // customer-4 is not in the current ST deploy group
     'customer-4',
-    'customer-7',
   ],
   materials: {
     conduit_repo: {
