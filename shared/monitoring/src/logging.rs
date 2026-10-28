@@ -1,8 +1,8 @@
 use sentry::ClientOptions;
 use sentry::integrations::tracing::{ErrorLayer, LogLayer};
 use serde::{Deserialize, Serialize};
-use tracing::level_filters::LevelFilter;
 use std::borrow::Cow;
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::prelude::*;
