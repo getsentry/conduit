@@ -1,7 +1,8 @@
-use sentry::{integrations::tracing::EventFilter, types::Dsn};
+use sentry::ClientOptions;
+use sentry::integrations::tracing::{ErrorLayer, LogLayer};
 use serde::{Deserialize, Serialize};
+use tracing::level_filters::LevelFilter;
 use std::borrow::Cow;
-use std::str::FromStr;
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::prelude::*;
@@ -55,15 +56,11 @@ impl LoggingConfig {
 /// Setup sentry-sdk and logging/tracing
 pub fn init(log_config: LoggingConfig) {
     if let Some(dsn) = &log_config.sentry_dsn {
-        let dsn = Some(Dsn::from_str(dsn).expect("Invalid Sentry DSN"));
-        let guard = sentry::init(sentry::ClientOptions {
-            dsn,
-            // TODO: Add releases
-            environment: log_config.sentry_env.clone(),
-            traces_sample_rate: log_config.traces_sample_rate,
-            enable_logs: true,
-            ..Default::default()
-        });
+        let options = ClientOptions::new()
+            .dsn(dsn)
+            .environment(log_config.sentry_env.unwrap_or("dev".into()))
+            .traces_sample_rate(log_config.traces_sample_rate);
+        let guard = sentry::init(options);
 
         std::mem::forget(guard);
     }
@@ -84,17 +81,12 @@ pub fn init(log_config: LoggingConfig) {
         LogFormat::Text => subscriber.compact().boxed(),
     };
 
-    // Same as the default filter, except it sends everything at or above INFO as logs instead of breadcrumbs.
-    let sentry_layer =
-        sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
-            tracing::Level::ERROR => EventFilter::Event | EventFilter::Log,
-            tracing::Level::WARN | tracing::Level::INFO => EventFilter::Log,
-            tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
-        });
-
+    // Capture ERROR level tracing events as error events. info, warn, error will
+    // be captured as logs.
     let logs_subscriber = tracing_subscriber::registry()
         .with(formatter.with_filter(EnvFilter::new(log_config.log_filter)))
-        .with(sentry_layer);
+        .with(ErrorLayer::new().with_filter(LevelFilter::ERROR))
+        .with(LogLayer::new().with_filter(LevelFilter::INFO));
 
     logs_subscriber.init();
 }

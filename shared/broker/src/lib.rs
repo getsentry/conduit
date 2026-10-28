@@ -3,7 +3,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use futures::future::join_all;
 use redis::streams::{StreamMaxlen, StreamReadOptions, StreamReadReply};
-use redis::{AsyncCommands, from_redis_value};
+use redis::{AsyncCommands, from_redis_value_ref};
 use xxhash_rust::xxh3::xxh3_64;
 
 use mockall::automock;
@@ -232,7 +232,7 @@ impl RedisOperations for RedisClient {
                 let data = stream_id
                     .map
                     .get(STREAM_DATA_FIELD)
-                    .and_then(|v| from_redis_value::<Vec<u8>>(v).ok())
+                    .and_then(|v| from_redis_value_ref::<Vec<u8>>(v).ok())
                     .unwrap_or_default();
                 (stream_id.id, data)
             })
