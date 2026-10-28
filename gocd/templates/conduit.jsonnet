@@ -5,8 +5,6 @@ local pipedream_config = {
   name: 'conduit',
   auto_deploy: true,
   exclude_regions: [
-    'us',
-    'de',
     'customer-1',
     'customer-2',
     'customer-4',
