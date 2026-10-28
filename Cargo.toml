@@ -22,7 +22,7 @@ futures = "0.3.34"
 futures-util = "0.3.34"
 http = "1.5.0"
 redis = { version = "1.8.0", features = ["tokio-comp", "connection-manager", "cluster-async"] }
-jsonwebtoken = "11.1.0"
+jsonwebtoken = { version = "11.1.0", features = ["rust_crypto"] }
 metrics-exporter-dogstatsd = "0.9.8"
 metrics = "0.24.6"
 mockall = "0.15.0"
