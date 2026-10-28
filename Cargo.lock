@@ -1077,7 +1077,7 @@ dependencies = [
  "monitoring",
  "prost",
  "prost-types",
- "rand 0.9.5",
+ "rand 0.10.3",
  "redis",
  "rsa",
  "sentry_protos",

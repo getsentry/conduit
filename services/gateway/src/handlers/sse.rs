@@ -15,7 +15,7 @@ use axum::{
 };
 use broker::{RedisOperations, StreamEvents, StreamKey};
 use futures_util::Stream;
-use rand::{Rng, rng};
+use rand::{RngExt, rng};
 use redis::streams::StreamReadOptions;
 use sentry_protos::conduit::v1alpha::PublishRequest;
 use serde::{Deserialize, Serialize};

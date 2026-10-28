@@ -32,7 +32,7 @@ uuid = { version = "1.29.0", features = ["v4", "serde"] }
 tokio = { version = "1.54.1", features = ["full"] }
 tokio-stream = "0.1.19"
 tokio-util = "0.7.20"
-rand = "0.9"
+rand = "0.10"
 rsa = "0.9.10"
 thiserror = "2.0.21"
 tower = "0.5.3"
