@@ -376,7 +376,7 @@ mod tests {
             .times(1)
             .returning(|_, _| {
                 Err(BrokerError::Redis(RedisError::from((
-                    redis::ErrorKind::IoError,
+                    redis::ErrorKind::Io,
                     "Connection lost",
                 ))))
             });
@@ -454,7 +454,7 @@ mod tests {
             .times(1)
             .returning(|_, _| {
                 Err(BrokerError::Redis(RedisError::from((
-                    redis::ErrorKind::IoError,
+                    redis::ErrorKind::Io,
                     "Connection lost",
                 ))))
             });
@@ -534,7 +534,7 @@ mod tests {
             .times(1)
             .returning(|_| {
                 Err(BrokerError::Redis(RedisError::from((
-                    redis::ErrorKind::IoError,
+                    redis::ErrorKind::Io,
                     "Connection lost",
                 ))))
             });
@@ -603,7 +603,7 @@ mod tests {
 
         mock_redis.expect_publish().returning(|_, _, _| {
             Err(BrokerError::Redis(redis::RedisError::from((
-                redis::ErrorKind::IoError,
+                redis::ErrorKind::Io,
                 "Connection lost",
             ))))
         });
@@ -690,7 +690,7 @@ mod tests {
             .times(1)
             .returning(|_, _, _| {
                 Err(BrokerError::Redis(redis::RedisError::from((
-                    redis::ErrorKind::IoError,
+                    redis::ErrorKind::Io,
                     "Connection lost",
                 ))))
             });

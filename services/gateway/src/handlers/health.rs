@@ -115,7 +115,7 @@ mod tests {
 
         mock_redis.expect_ping().times(1).returning(|| {
             Err(BrokerError::Redis(redis::RedisError::from((
-                redis::ErrorKind::IoError,
+                redis::ErrorKind::Io,
                 "Connection refused",
             ))))
         });

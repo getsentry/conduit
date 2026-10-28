@@ -257,7 +257,7 @@ mod tests {
             .with(eq(1000))
             .returning(|_| {
                 Err(BrokerError::Redis(RedisError::from((
-                    redis::ErrorKind::IoError,
+                    redis::ErrorKind::Io,
                     "Connection lost",
                 ))))
             });
@@ -305,7 +305,7 @@ mod tests {
             .times(1)
             .returning(|_| {
                 Err(BrokerError::Redis(RedisError::from((
-                    redis::ErrorKind::IoError,
+                    redis::ErrorKind::Io,
                     "Connection lost",
                 ))))
             });
@@ -346,7 +346,7 @@ mod tests {
             .times(1)
             .returning(|_| {
                 Err(BrokerError::Redis(RedisError::from((
-                    redis::ErrorKind::IoError,
+                    redis::ErrorKind::Io,
                     "Connection lost",
                 ))))
             });
