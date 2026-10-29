@@ -15,7 +15,7 @@ use axum::{
 };
 use broker::{RedisOperations, StreamEvents, StreamKey};
 use futures_util::Stream;
-use rand::{Rng, rng};
+use rand::{RngExt, rng};
 use redis::streams::StreamReadOptions;
 use sentry_protos::conduit::v1alpha::PublishRequest;
 use serde::{Deserialize, Serialize};
@@ -500,7 +500,7 @@ mod tests {
                 .times(MAX_CONSECUTIVE_ERRORS as usize)
                 .returning(|_, _, _| {
                     let redis_err =
-                        redis::RedisError::from((redis::ErrorKind::IoError, "Connection refused"));
+                        redis::RedisError::from((redis::ErrorKind::Io, "Connection refused"));
                     Err(broker::Error::Redis(redis_err))
                 });
 
@@ -599,7 +599,7 @@ mod tests {
                 if num_failures < EXPECTED_FAILURES {
                     num_failures += 1;
                     let redis_err =
-                        redis::RedisError::from((redis::ErrorKind::IoError, "Connection refused"));
+                        redis::RedisError::from((redis::ErrorKind::Io, "Connection refused"));
                     return Err(broker::Error::Redis(redis_err));
                 }
                 Ok(StreamEvents {
