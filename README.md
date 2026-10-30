@@ -191,8 +191,9 @@ devenv sync
 
 ### Configuration
 
-Copy `.env.default` to `.env` and make any required changes. By default the sentry-sdk DSN
-is not provided.
+The initial run of `devenv sync` will create a `.env` file for you based off of `.env.default`.
+This default configuration is intended to work well with Sentry's development environment.
+By default the sentry-sdk DSN is not provided.
 
 #### Generating a JWT keypair for local development
 
