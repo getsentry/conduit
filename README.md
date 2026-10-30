@@ -179,3 +179,49 @@ a maximum length, so connecting significantly late may result in missing earlier
 #### Client Libraries
 
 For TypeScript/JavaScript applications, use the official [client library](https://github.com/getsentry/conduit-client).
+
+## Local Development
+
+Initialize your development environment with `direnv` and `devenv`:
+
+```bash
+direnv allow
+devenv sync
+```
+
+### Configuration
+
+Copy `.env.default` to `.env` and make any required changes. By default the sentry-sdk DSN
+is not provided.
+
+#### Generating a JWT keypair for local development
+
+Conduit uses HS256/RS256 signatures on JWTs it creates. To generate a custom key
+pair you can run:
+
+```
+# Create the private key
+openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:2048
+# Extract a public key from the private key
+openssl pkey -in private_key.pem -pubout -out public_key.pem
+```
+
+The key pair can be added to `.env` by using literal `\n` in a quoted string. Applications
+that want to open channels and publish updates to channels will also need
+the private key.
+
+### Running the application
+
+First ensure that redis is running with `devservices`:
+
+```bash
+devservices up
+```
+
+You can run each conduit service with `cargo run`:
+
+```bash
+cargo run --bin gateway
+cargo run --bin cleanup
+cargo run --bin publish
+```
