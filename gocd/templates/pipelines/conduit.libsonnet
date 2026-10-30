@@ -41,6 +41,9 @@ function(region) {
             timeout: 20,
             elastic_profile_id: 'conduit',
             environment_variables: {
+              // Deploy task dispatches workflows in GitHub
+              GITHUB_APP_ID: '{{SECRET:[devinfra-github][app_id]}}',
+              GITHUB_APP_PRIVATE_KEY: '{{SECRET:[devinfra-github][private_key]}}',
               LABEL_SELECTOR: 'service=conduit',
             },
             tasks: [
