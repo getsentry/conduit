@@ -1,6 +1,7 @@
 from devenv import constants
 from devenv.lib import brew, config, proc, uv
 
+import os
 import shutil
 
 
@@ -32,5 +33,9 @@ def main(context: dict[str, str]) -> int:
 
     print("installing pre-commit hooks ...")
     proc.run((f"{reporoot}/.venv/bin/pre-commit", "install", "--install-hooks"))
+
+    if not os.path.exists(f"{reporoot}/.env"):
+        print("creating .env file from .env.default")
+        shutil.copy(f"{reporoot}/.env.default", f"{reporoot}/.env")
 
     return 0
