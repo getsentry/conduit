@@ -1,5 +1,5 @@
 use sentry::ClientOptions;
-use sentry::integrations::tracing::{ErrorLayer, LogLayer};
+use sentry::integrations::tracing::{ErrorLayer, LogLayer, SpanLayer};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use tracing::level_filters::LevelFilter;
@@ -86,6 +86,7 @@ pub fn init(log_config: LoggingConfig) {
     let logs_subscriber = tracing_subscriber::registry()
         .with(formatter.with_filter(EnvFilter::new(log_config.log_filter)))
         .with(ErrorLayer::new().with_filter(LevelFilter::ERROR))
+        .with(SpanLayer::new().with_filter(LevelFilter::INFO))
         .with(LogLayer::new().with_filter(LevelFilter::INFO));
 
     logs_subscriber.init();
