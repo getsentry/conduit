@@ -226,3 +226,29 @@ cargo run --bin gateway
 cargo run --bin cleanup
 cargo run --bin publish
 ```
+
+With `.env.default`, the services listen on gateway `8010`, cleanup `8011` and publish
+`8012`. These differ from the containerized ports below so both setups can coexist. To
+point a local Sentry at services started with `cargo run`, set:
+
+```bash
+CONDUIT_GATEWAY_URL=http://127.0.0.1:8010
+CONDUIT_PUBLISH_URL=http://127.0.0.1:8012
+```
+
+### Developing with Conduit from Sentry
+
+Conduit is registered as a remote devservices dependency in the Sentry repo. To run the
+full containerized stack (redis-cluster, gateway, publish, cleanup) alongside Sentry's
+development environment, from the sentry repo run:
+
+```bash
+devservices up --mode conduit
+```
+
+The services are exposed on the ports Sentry expects by default: gateway on `9096`,
+publish on `9097`, and cleanup on `9098`. Conduit's redis cluster listens on ports
+`7100`-`7105` to avoid colliding with Sentry's own redis cluster. The containerized
+services use the same development JWT credentials as `.env.default`, which match
+Sentry's development settings. Their configuration is set in `devservices/config.yml`
+and is not affected by your local `.env`.
