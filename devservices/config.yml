@@ -23,19 +23,21 @@ services:
   gateway:
     image: ghcr.io/getsentry/conduit-gateway:dev
     environment:
-      GATEWAY_PORT: ${GATEWAY_PORT:-8000}
-      REDIS_URL: ${REDIS_URL:-redis://redis:7000}
-      GATEWAY_JWT_ISSUER: ${GATEWAY_JWT_ISSUER:-}
-      GATEWAY_JWT_AUDIENCE: ${GATEWAY_JWT_AUDIENCE:-}
-      GATEWAY_JWT_PUBLIC_KEY: ${GATEWAY_JWT_PUBLIC_KEY:-}
+      GATEWAY_PORT: ${GATEWAY_PORT:-8010}
+      REDIS_URL: ${REDIS_URL:-redis://redis-cluster:7000}
+      GATEWAY_JWT_ISSUER: ${GATEWAY_JWT_ISSUER:-dev.getsentry.net}
+      GATEWAY_JWT_AUDIENCE: ${GATEWAY_JWT_AUDIENCE:-conduit}
+      GATEWAY_JWT_PUBLIC_KEY: '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApJI72zDCwwgaxuPGgvgT\n4L3jRwtl7LVWn6oQSWy+K5DX+Ui8N6oyHcr/5+LjfuvrJu+7gF3jes0KVfBRRX4/\n8T1J3n8Mw5FCGkaBXpRVreMQ/dXffycpythdYJNjva4rk4yFtFABOzRba5mrTSPT\nbDSFbVS/X/cQTY6SVlbIljEjn+/aAvs+882n7FsjAAn4lbs/A/J9NwZZz+5GYxi6\nno3STj6rEELVGzc3W36ZZslNLtWzE3WfRUJMyORZ5vyGigjV6bQ6+dqxOPwzqDsf\n+JliB2AMOQ26lHHNIkgDZFLSOejqwHMbKbCj0iSv1MrX4xcTlgw8yoisX74BE2Vs\nwQIDAQAB\n-----END PUBLIC KEY-----'
     ports:
-      - 127.0.0.1:8000:8000
+      - 127.0.0.1:9096:8010
     networks:
       - devservices
+    extra_hosts:
+      - host.docker.internal:host-gateway
     labels:
       - orchestrator=devservices
     healthcheck:
-      test: curl -f http://127.0.0.1:8000/healthz
+      test: curl -f http://127.0.0.1:8010/healthz
       interval: 5s
       timeout: 5s
       retries: 3
@@ -43,19 +45,21 @@ services:
   publish:
     image: ghcr.io/getsentry/conduit-publish:dev
     environment:
-      PUBLISH_PORT: ${PUBLISH_PORT:-8001}
-      REDIS_URL: ${REDIS_URL:-redis://redis:7000}
-      PUBLISH_JWT_ISSUER: ${PUBLISH_JWT_ISSUER:-}
-      PUBLISH_JWT_AUDIENCE: ${PUBLISH_JWT_AUDIENCE:-}
-      PUBLISH_JWT_SECRET: ${PUBLISH_JWT_SECRET:-}
+      PUBLISH_PORT: ${PUBLISH_PORT:-8012}
+      REDIS_URL: ${REDIS_URL:-redis://redis-cluster:7000}
+      PUBLISH_JWT_ISSUER: ${PUBLISH_JWT_ISSUER:-dev.getsentry.net}
+      PUBLISH_JWT_AUDIENCE: ${PUBLISH_JWT_AUDIENCE:-conduit}
+      PUBLISH_JWT_SECRET: ${PUBLISH_JWT_SECRET:-conduit-dev-secret}
     ports:
-      - 127.0.0.1:8001:8001
+      - 127.0.0.1:9097:8012
     networks:
       - devservices
+    extra_hosts:
+      - host.docker.internal:host-gateway
     labels:
       - orchestrator=devservices
     healthcheck:
-      test: curl -f http://127.0.0.1:8001/healthz
+      test: curl -f http://127.0.0.1:8012/healthz
       interval: 5s
       timeout: 5s
       retries: 3
@@ -63,16 +67,18 @@ services:
   cleanup:
     image: ghcr.io/getsentry/conduit-cleanup:dev
     environment:
-      CLEANUP_PORT: ${CLEANUP_PORT:-8002}
-      REDIS_URL: ${REDIS_URL:-redis://redis:7000}
+      CLEANUP_PORT: ${CLEANUP_PORT:-8011}
+      REDIS_URL: ${REDIS_URL:-redis://redis-cluster:7000}
     ports:
-      - 127.0.0.1:8002:8002
+      - 127.0.0.1:9098:8011
     networks:
       - devservices
+    extra_hosts:
+      - host.docker.internal:host-gateway
     labels:
       - orchestrator=devservices
     healthcheck:
-      test: curl -f http://127.0.0.1:8002/healthz
+      test: curl -f http://127.0.0.1:8011/healthz
       interval: 5s
       timeout: 5s
       retries: 3
@@ -88,6 +94,8 @@ services:
       - '127.0.0.1:7005:7005'
     networks:
       - devservices
+    extra_hosts:
+      - host.docker.internal:host-gateway
     environment:
       - IP=0.0.0.0
     labels:

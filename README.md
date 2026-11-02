@@ -226,3 +226,18 @@ cargo run --bin gateway
 cargo run --bin cleanup
 cargo run --bin publish
 ```
+
+### Developing with Conduit from Sentry
+
+Conduit is registered as a remote devservices dependency in the Sentry repo. To run the
+full containerized stack (redis-cluster, gateway, publish, cleanup) alongside Sentry's
+development environment, from the sentry repo run:
+
+```bash
+devservices up --mode conduit
+```
+
+The services are exposed on the ports Sentry expects by default: gateway on `9096`,
+publish on `9097`, and cleanup on `9098`. The containerized services use the same
+development JWT credentials as `.env.default`, which match Sentry's development
+settings.
