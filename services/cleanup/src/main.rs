@@ -59,7 +59,10 @@ fn main() -> anyhow::Result<()> {
     let logging_config = logging::LoggingConfig::new(
         std::env::var("CLEANUP_SENTRY_DSN").ok(),
         std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
-        1.0,
+        std::env::var("CLEANUP_TRACES_SAMPLE_RATE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1.0),
         std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()),
         if std::env::var("LOG_FORMAT").as_deref() == Ok("json") {
             logging::LogFormat::Json
