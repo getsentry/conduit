@@ -238,6 +238,7 @@ devservices up --mode conduit
 ```
 
 The services are exposed on the ports Sentry expects by default: gateway on `9096`,
-publish on `9097`, and cleanup on `9098`. The containerized services use the same
-development JWT credentials as `.env.default`, which match Sentry's development
-settings.
+publish on `9097`, and cleanup on `9098`. Conduit's redis cluster listens on ports
+`7100`-`7105` to avoid colliding with Sentry's own redis cluster. The containerized
+services use the same development JWT credentials as `.env.default`, which match
+Sentry's development settings.
