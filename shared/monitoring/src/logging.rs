@@ -78,7 +78,7 @@ pub fn init(log_config: LoggingConfig) {
             .with_file(true)
             .with_line_number(true)
             .boxed(),
-        LogFormat::Text => subscriber.compact().boxed(),
+        LogFormat::Text => subscriber.compact().with_ansi(false).boxed(),
     };
 
     // Capture ERROR level tracing events as error events. info, warn, error will
