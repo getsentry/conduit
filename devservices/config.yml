@@ -29,10 +29,10 @@ services:
     depends_on:
       - redis-cluster
     environment:
-      GATEWAY_PORT: ${GATEWAY_PORT:-9096}
-      REDIS_URL: ${REDIS_URL:-redis://127.0.0.1:7100}
-      GATEWAY_JWT_ISSUER: ${GATEWAY_JWT_ISSUER:-dev.getsentry.net}
-      GATEWAY_JWT_AUDIENCE: ${GATEWAY_JWT_AUDIENCE:-conduit}
+      GATEWAY_PORT: "9096"
+      REDIS_URL: redis://127.0.0.1:7100
+      GATEWAY_JWT_ISSUER: dev.getsentry.net
+      GATEWAY_JWT_AUDIENCE: conduit
       GATEWAY_JWT_PUBLIC_KEY: |-
         -----BEGIN PUBLIC KEY-----
         MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApJI72zDCwwgaxuPGgvgT
@@ -57,11 +57,11 @@ services:
     depends_on:
       - redis-cluster
     environment:
-      PUBLISH_PORT: ${PUBLISH_PORT:-9097}
-      REDIS_URL: ${REDIS_URL:-redis://127.0.0.1:7100}
-      PUBLISH_JWT_ISSUER: ${PUBLISH_JWT_ISSUER:-dev.getsentry.net}
-      PUBLISH_JWT_AUDIENCE: ${PUBLISH_JWT_AUDIENCE:-conduit}
-      PUBLISH_JWT_SECRET: ${PUBLISH_JWT_SECRET:-conduit-dev-secret}
+      PUBLISH_PORT: "9097"
+      REDIS_URL: redis://127.0.0.1:7100
+      PUBLISH_JWT_ISSUER: dev.getsentry.net
+      PUBLISH_JWT_AUDIENCE: conduit
+      PUBLISH_JWT_SECRET: conduit-dev-secret
     labels:
       - orchestrator=devservices
     healthcheck:
@@ -76,8 +76,8 @@ services:
     depends_on:
       - redis-cluster
     environment:
-      CLEANUP_PORT: ${CLEANUP_PORT:-9098}
-      REDIS_URL: ${REDIS_URL:-redis://127.0.0.1:7100}
+      CLEANUP_PORT: "9098"
+      REDIS_URL: redis://127.0.0.1:7100
     labels:
       - orchestrator=devservices
     healthcheck:
