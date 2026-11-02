@@ -2,6 +2,7 @@ use sentry::ClientOptions;
 use sentry::integrations::tracing::{ErrorLayer, LogLayer, SpanLayer};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::EnvFilter;
@@ -25,6 +26,10 @@ pub struct LoggingConfig {
     /// The environment to report to sentry errors to.
     pub sentry_env: Option<Cow<'static, str>>,
 
+    /// The name of the service (e.g. "gateway", "publish", "cleanup").
+    /// Added as a `service` tag on every Sentry event.
+    pub service_name: &'static str,
+
     /// The tracing sample rate
     pub traces_sample_rate: f32,
 
@@ -39,6 +44,7 @@ impl LoggingConfig {
     pub fn new(
         sentry_dsn: Option<String>,
         environment: String,
+        service_name: &'static str,
         traces_sample_rate: f32,
         log_filter: String,
         log_format: LogFormat,
@@ -46,6 +52,7 @@ impl LoggingConfig {
         LoggingConfig {
             sentry_dsn,
             sentry_env: Some(Cow::Owned(environment)),
+            service_name,
             traces_sample_rate,
             log_filter,
             log_format,
@@ -59,8 +66,13 @@ pub fn init(log_config: LoggingConfig) {
         let options = ClientOptions::new()
             .dsn(dsn)
             .environment(log_config.sentry_env.unwrap_or("dev".into()))
+            .server_name(log_config.service_name)
             .traces_sample_rate(log_config.traces_sample_rate);
         let guard = sentry::init(options);
+
+        sentry::configure_scope(|scope| {
+            scope.set_tag("service", log_config.service_name);
+        });
 
         std::mem::forget(guard);
     }

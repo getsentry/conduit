@@ -25,8 +25,9 @@ fn main() -> anyhow::Result<()> {
     dotenv().ok();
 
     let logging_config = logging::LoggingConfig::new(
-        std::env::var("GATEWAY_SENTRY_DSN").ok(),
+        std::env::var("SENTRY_DSN").ok(),
         std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
+        SERVICE_NAME,
         std::env::var("GATEWAY_TRACES_SAMPLE_RATE")
             .ok()
             .and_then(|s| s.parse().ok())
