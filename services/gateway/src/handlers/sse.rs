@@ -225,7 +225,7 @@ pub async fn sse_handler(
 
     if state.load_shedder.should_shed() {
         return Err((
-            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::TOO_MANY_REQUESTS,
             "Server is overloaded".to_string(),
         ));
     }
