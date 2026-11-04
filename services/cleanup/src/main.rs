@@ -6,7 +6,7 @@ use std::{
 };
 
 use axum::{Router, routing::get};
-use broker::{RedisClient, RedisOperations, StreamKey};
+use broker::{ConnectTimeoutCounter, RedisClient, RedisOperations, StreamKey};
 use chrono::Utc;
 use cleanup::{
     handlers::health::{healthz_handler, readyz_handler},
@@ -116,7 +116,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(120); // Default: 2 minutes
 
-    let broker = RedisClient::new(redis_url.as_str()).await?;
+    let broker = RedisClient::new(redis_url.as_str(), ConnectTimeoutCounter::default()).await?;
 
     let state = AppState {
         redis: broker.clone(),

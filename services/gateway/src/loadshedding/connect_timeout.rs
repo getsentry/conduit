@@ -1,44 +1,75 @@
-use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
+
+use async_trait::async_trait;
+use broker::ConnectTimeoutCounter;
 
 use super::MetricMonitor;
 
-/// Factor applied to the value on every poll. With a steady rate of `r`
-/// timeouts per poll interval, the value converges to `r / (1 - DECAY)`.
-const DECAY: f64 = 0.5;
+/// How quickly old timeouts stop counting: after `HALF_LIFE`, a timeout
+/// contributes half as much to the rate.
+const HALF_LIFE: Duration = Duration::from_secs(1);
 
-/// Decaying count of recent Redis connection acquire timeouts.
-///
-/// On every poll, the timeouts that happened since the previous poll are added
-/// to the value after it is decayed by [`DECAY`].
+/// Exponentially weighted rate of `new_events` that happened over `elapsed`,
+/// treating them as spread evenly over that time. The result does not depend
+/// on how often it is updated: a steady `r` events/s converges to `r`.
+fn decayed_rate(previous_rate: f64, new_events: u64, elapsed: Duration) -> f64 {
+    let elapsed = elapsed.as_secs_f64();
+    if elapsed <= 0.0 {
+        return previous_rate;
+    }
+    let decay = 0.5f64.powf(elapsed / HALF_LIFE.as_secs_f64());
+    previous_rate * decay + new_events as f64 * (1.0 - decay) / elapsed
+}
+
+struct State {
+    last_total: u64,
+    last_poll: Instant,
+    rate: f64,
+}
+
+/// Recent rate of Redis connection acquire timeouts, in timeouts per second.
 pub struct ConnectTimeoutMonitor {
-    total: Arc<AtomicU64>,
-    last_total: AtomicU64,
-    /// `f64` bits of the decayed value.
-    value: AtomicU64,
+    total: ConnectTimeoutCounter,
+    state: Mutex<State>,
+    last_value: AtomicU64,
 }
 
 impl ConnectTimeoutMonitor {
-    pub fn new(total: Arc<AtomicU64>) -> Self {
+    pub fn new(total: ConnectTimeoutCounter) -> Self {
         Self {
-            last_total: AtomicU64::new(total.load(Ordering::Relaxed)),
+            state: Mutex::new(State {
+                last_total: total.get(),
+                last_poll: Instant::now(),
+                rate: 0.0,
+            }),
             total,
-            value: AtomicU64::new(0f64.to_bits()),
+            last_value: AtomicU64::new(0),
         }
     }
 }
 
+#[async_trait]
 impl MetricMonitor for ConnectTimeoutMonitor {
-    fn poll(&self) {
-        let total = self.total.load(Ordering::Relaxed);
-        let new = total.saturating_sub(self.last_total.swap(total, Ordering::Relaxed));
-        let value = f64::from_bits(self.value.load(Ordering::Relaxed));
-        let value = value * DECAY + new as f64;
-        self.value.store(value.to_bits(), Ordering::Relaxed);
+    async fn poll(&self) {
+        let Ok(mut state) = self.state.lock() else {
+            return;
+        };
+        let now = Instant::now();
+        let total = self.total.get();
+        state.rate = decayed_rate(
+            state.rate,
+            total.saturating_sub(state.last_total),
+            now - state.last_poll,
+        );
+        state.last_total = total;
+        state.last_poll = now;
+        self.last_value.store(state.rate as u64, Ordering::Relaxed);
     }
 
     fn last_value(&self) -> u64 {
-        f64::from_bits(self.value.load(Ordering::Relaxed)) as u64
+        self.last_value.load(Ordering::Relaxed)
     }
 
     fn name(&self) -> &'static str {
@@ -51,24 +82,45 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_connect_timeout_monitor_decays() {
-        let total = Arc::new(AtomicU64::new(3));
-        let monitor = ConnectTimeoutMonitor::new(total.clone());
+    fn test_decayed_rate_converges_regardless_of_period() {
+        let rate_per_sec = 10.0;
+        for period in [0.1, 0.5, 1.0, 5.0] {
+            let mut rate = 0.0;
+            for _ in 0..1000 {
+                rate = decayed_rate(
+                    rate,
+                    (rate_per_sec * period) as u64,
+                    Duration::from_secs_f64(period),
+                );
+            }
+            assert!(
+                (rate - rate_per_sec).abs() < 0.01,
+                "period {period}s converged to {rate}"
+            );
+        }
+    }
 
-        // Timeouts from before the monitor was created are not counted.
-        monitor.poll();
+    #[test]
+    fn test_decayed_rate_halves_after_half_life() {
+        assert_eq!(decayed_rate(8.0, 0, HALF_LIFE), 4.0);
+        assert_eq!(decayed_rate(8.0, 0, HALF_LIFE * 2), 2.0);
+    }
+
+    #[test]
+    fn test_decayed_rate_zero_elapsed() {
+        assert_eq!(decayed_rate(8.0, 5, Duration::ZERO), 8.0);
+    }
+
+    #[tokio::test]
+    async fn test_connect_timeout_monitor_ignores_timeouts_before_creation() {
+        let total = ConnectTimeoutCounter::default();
+        (0..1000).for_each(|_| total.inc());
+        let monitor = ConnectTimeoutMonitor::new(total.clone());
+        monitor.poll().await;
         assert_eq!(monitor.last_value(), 0);
 
-        total.fetch_add(10, Ordering::Relaxed);
-        monitor.poll();
-        assert_eq!(monitor.last_value(), 10);
-
-        monitor.poll();
-        assert_eq!(monitor.last_value(), 5);
-
-        total.fetch_add(4, Ordering::Relaxed);
-        monitor.poll();
-        // 5 * 0.5 + 4
-        assert_eq!(monitor.last_value(), 6);
+        (0..1000).for_each(|_| total.inc());
+        monitor.poll().await;
+        assert!(monitor.last_value() > 0);
     }
 }

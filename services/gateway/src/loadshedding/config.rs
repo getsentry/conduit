@@ -1,25 +1,36 @@
+use std::time::Duration;
+
+const DEFAULT_PERIOD: Duration = Duration::from_secs(1);
+
 #[derive(Debug, PartialEq)]
 pub struct Limits {
     pub hard: u64,
     pub soft: u64,
 }
 
-/// Reads `LOADSHEDDING_<METRIC>_HARD_LIMIT` and `LOADSHEDDING_<METRIC>_SOFT_LIMIT`.
-pub fn limits_from_env(metric: &str) -> Option<Limits> {
-    let hard_var = format!("LOADSHEDDING_{metric}_HARD_LIMIT");
-    let soft_var = format!("LOADSHEDDING_{metric}_SOFT_LIMIT");
-    resolve_limits(
-        &hard_var,
-        env_limit(&hard_var),
-        &soft_var,
-        env_limit(&soft_var),
-    )
+#[derive(Debug, PartialEq)]
+pub struct MonitorConfig {
+    pub limits: Limits,
+    /// How often the monitor polls its metric.
+    pub period: Duration,
 }
 
-fn env_limit(var: &str) -> Option<u64> {
+/// Reads `LOADSHEDDING_<METRIC>_HARD_LIMIT`, `LOADSHEDDING_<METRIC>_SOFT_LIMIT`
+/// and `LOADSHEDDING_<METRIC>_PERIOD_MS`. Returns `None` if the monitor is
+/// disabled.
+pub fn monitor_config_from_env(metric: &str) -> Option<MonitorConfig> {
+    let hard_var = format!("LOADSHEDDING_{metric}_HARD_LIMIT");
+    let soft_var = format!("LOADSHEDDING_{metric}_SOFT_LIMIT");
+    let period_var = format!("LOADSHEDDING_{metric}_PERIOD_MS");
+    let limits = resolve_limits(&hard_var, env_u64(&hard_var), &soft_var, env_u64(&soft_var))?;
+    let period = resolve_period(&period_var, env_u64(&period_var));
+    Some(MonitorConfig { limits, period })
+}
+
+fn env_u64(var: &str) -> Option<u64> {
     let value = std::env::var(var).ok()?;
     match value.parse() {
-        Ok(limit) => Some(limit),
+        Ok(parsed) => Some(parsed),
         Err(_) => {
             tracing::warn!("Ignoring {var}={value}: expected a non-negative integer");
             None
@@ -51,6 +62,17 @@ fn resolve_limits(
     })
 }
 
+fn resolve_period(period_var: &str, period_ms: Option<u64>) -> Duration {
+    match period_ms {
+        None => DEFAULT_PERIOD,
+        Some(0) => {
+            tracing::warn!("{period_var} must be greater than 0; using {DEFAULT_PERIOD:?}");
+            DEFAULT_PERIOD
+        }
+        Some(ms) => Duration::from_millis(ms),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -80,6 +102,16 @@ mod tests {
                 hard: 100,
                 soft: 100
             })
+        );
+    }
+
+    #[test]
+    fn test_resolve_period() {
+        assert_eq!(resolve_period("PERIOD", None), DEFAULT_PERIOD);
+        assert_eq!(resolve_period("PERIOD", Some(0)), DEFAULT_PERIOD);
+        assert_eq!(
+            resolve_period("PERIOD", Some(250)),
+            Duration::from_millis(250)
         );
     }
 }

@@ -74,6 +74,22 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
+/// Shared count of Redis connection acquire timeouts. Clones share the same
+/// count, so it can be handed to both the [`RedisClient`] (which increments it)
+/// and whoever reads it.
+#[derive(Clone, Default)]
+pub struct ConnectTimeoutCounter(Arc<AtomicU64>);
+
+impl ConnectTimeoutCounter {
+    pub fn inc(&self) {
+        self.0.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn get(&self) -> u64 {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
 #[automock]
 #[async_trait]
 pub trait RedisOperations: Send + Sync {
@@ -150,11 +166,11 @@ pub trait RedisOperations: Send + Sync {
 #[derive(Clone)]
 pub struct RedisClient {
     pool: deadpool_redis::cluster::Pool,
-    connect_timeouts: Arc<AtomicU64>,
+    connect_timeouts: ConnectTimeoutCounter,
 }
 
 impl RedisClient {
-    pub async fn new(redis_url: &str) -> Result<Self> {
+    pub async fn new(redis_url: &str, connect_timeouts: ConnectTimeoutCounter) -> Result<Self> {
         let max_size = std::env::var("REDIS_POOL_MAX_SIZE")
             .ok()
             .and_then(|s| s.parse().ok())
@@ -191,17 +207,12 @@ impl RedisClient {
 
         Ok(Self {
             pool,
-            connect_timeouts: Arc::new(AtomicU64::new(0)),
+            connect_timeouts,
         })
     }
 
     pub fn pool_status(&self) -> deadpool_redis::cluster::Status {
         self.pool.status()
-    }
-
-    /// Total number of connection acquire timeouts since the client was created.
-    pub fn connect_timeouts(&self) -> Arc<AtomicU64> {
-        self.connect_timeouts.clone()
     }
 
     /// Acquires a connection from the pool, recording a metric when acquisition
@@ -217,7 +228,7 @@ impl RedisClient {
                 };
                 metrics::counter!("redis.pool.connection_acquire.timeout", "timeout_type" => kind)
                     .increment(1);
-                self.connect_timeouts.fetch_add(1, Ordering::Relaxed);
+                self.connect_timeouts.inc();
             }
             Error::Pool(e)
         })
