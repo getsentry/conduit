@@ -7,7 +7,7 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use broker::{ConnectTimeoutCounter, RedisClient};
+use broker::RedisClient;
 use dotenvy::dotenv;
 use monitoring::logging;
 use publish::{
@@ -75,7 +75,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let port = std::env::var("PUBLISH_PORT")?;
     let redis_url = std::env::var("REDIS_URL")?;
 
-    let broker = RedisClient::new(redis_url.as_str(), ConnectTimeoutCounter::default()).await?;
+    let broker = RedisClient::new(redis_url.as_str()).await?;
 
     let jwt_config = JwtConfig::from_env()?;
 

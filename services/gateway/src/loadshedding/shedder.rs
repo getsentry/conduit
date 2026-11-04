@@ -2,14 +2,13 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use broker::ConnectTimeoutCounter;
 use futures_util::future::join_all;
 use rand::{RngExt, rng};
 use tokio::sync::oneshot;
 use tokio::time::{Instant, MissedTickBehavior};
 
 use super::config::{MonitorConfig, monitor_config_from_env};
-use super::{ConnectTimeoutMonitor, MemoryMonitor, MetricMonitor};
+use super::{MemoryMonitor, MetricMonitor};
 
 const MONITOR_THREAD_NAME: &str = "loadshedding-monitors";
 
@@ -40,16 +39,10 @@ pub struct LoadShedder {
 impl LoadShedder {
     /// Configures monitors from `LOADSHEDDING_*` env vars. A monitor is only
     /// enabled if its hard limit is set.
-    pub async fn from_env(connect_timeouts: ConnectTimeoutCounter) -> anyhow::Result<Self> {
+    pub async fn from_env() -> anyhow::Result<Self> {
         let mut shedder = Self::default();
         if let Some(config) = monitor_config_from_env("MEMORY") {
             shedder.add(Arc::new(MemoryMonitor::new().await?), config);
-        }
-        if let Some(config) = monitor_config_from_env("CONNECT_TIMEOUT") {
-            shedder.add(
-                Arc::new(ConnectTimeoutMonitor::new(connect_timeouts)),
-                config,
-            );
         }
         Ok(shedder)
     }

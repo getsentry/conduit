@@ -5,7 +5,7 @@ use std::{
 };
 
 use axum::{Router, routing::get};
-use broker::{ConnectTimeoutCounter, RedisClient};
+use broker::RedisClient;
 use dotenvy::dotenv;
 use gateway::{
     handlers::{
@@ -76,12 +76,11 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let port = std::env::var("GATEWAY_PORT")?;
     let redis_url = std::env::var("REDIS_URL")?;
 
-    let connect_timeouts = ConnectTimeoutCounter::default();
-    let broker = RedisClient::new(redis_url.as_str(), connect_timeouts.clone()).await?;
+    let broker = RedisClient::new(redis_url.as_str()).await?;
 
     let jwt_config = JwtConfig::from_env()?;
 
-    let load_shedder = Arc::new(LoadShedder::from_env(connect_timeouts).await?);
+    let load_shedder = Arc::new(LoadShedder::from_env().await?);
     load_shedder.start().await?;
 
     let state = AppState {

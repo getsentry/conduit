@@ -8,20 +8,17 @@
 //! [`should_shed`]). If any monitor decides to shed, the request is shed.
 //!
 //! Each monitor is configured with these env vars, where `<METRIC>` is
-//! `MEMORY` (bytes) or `CONNECT_TIMEOUT` (Redis connection acquire timeouts
-//! per second):
+//! `MEMORY` (bytes):
 //!
 //! - `LOADSHEDDING_<METRIC>_HARD_LIMIT`: enables the monitor
 //! - `LOADSHEDDING_<METRIC>_SOFT_LIMIT`: defaults to the hard limit
 //! - `LOADSHEDDING_<METRIC>_PERIOD_MS`: poll period, defaults to 1000
 
 mod config;
-mod connect_timeout;
 mod memory;
 mod monitor;
 mod shedder;
 
-pub use connect_timeout::ConnectTimeoutMonitor;
 pub use memory::MemoryMonitor;
 pub use monitor::MetricMonitor;
 pub use shedder::{LoadShedder, should_shed};
