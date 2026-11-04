@@ -45,6 +45,10 @@ function(region) {
               GITHUB_APP_ID: '{{SECRET:[devinfra-github][app_id]}}',
               GITHUB_APP_PRIVATE_KEY: '{{SECRET:[devinfra-github][private_key]}}',
               LABEL_SELECTOR: 'service=conduit',
+              // Commit images to materialized-ops and wait for ArgoCD
+              // instead of patching Kubernetes directly.
+              ARGOCD_ONLY: 'true',
+              ARGOCD_SERVICE: 'conduit',
             },
             tasks: [
               gocdtasks.script(importstr '../bash/deploy.sh'),
