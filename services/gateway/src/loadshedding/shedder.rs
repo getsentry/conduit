@@ -127,8 +127,6 @@ async fn run_monitor(
     interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
     loop {
         monitor.poll().await;
-        metrics::gauge!("loadshedding.monitor.value", "monitor" => monitor.name())
-            .set(monitor.last_value() as f64);
         if let Some(ready_tx) = ready_tx.take() {
             let _ = ready_tx.send(());
         }
