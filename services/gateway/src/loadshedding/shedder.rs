@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+use anyhow::Context;
 use futures_util::future::join_all;
 use rand::{RngExt, rng};
 use tokio::sync::oneshot;
@@ -65,12 +66,16 @@ impl LoadShedder {
         if self.monitors.is_empty() {
             return Ok(());
         }
+        let mut ready = Vec::with_capacity(self.monitors.len());
         let monitors: Vec<_> = self
             .monitors
             .iter()
-            .map(|m| (m.monitor.clone(), m.config.period))
+            .map(|m| {
+                let (ready_tx, ready_rx) = oneshot::channel();
+                ready.push(ready_rx);
+                (m.monitor.clone(), m.config.period, ready_tx)
+            })
             .collect();
-        let (ready_tx, ready_rx) = oneshot::channel();
 
         thread::Builder::new()
             .name(MONITOR_THREAD_NAME.to_string())
@@ -81,25 +86,20 @@ impl LoadShedder {
                 {
                     Ok(runtime) => runtime,
                     Err(e) => {
-                        let _ = ready_tx.send(Err(e));
+                        tracing::error!("Failed to build load shedding monitor runtime: {e}");
                         return;
                     }
                 };
-                runtime.block_on(async move {
-                    for (monitor, _) in &monitors {
-                        monitor.poll().await;
-                    }
-                    let _ = ready_tx.send(Ok(()));
-                    join_all(
-                        monitors
-                            .into_iter()
-                            .map(|(monitor, period)| run_monitor(monitor, period)),
-                    )
-                    .await;
-                });
+                runtime.block_on(join_all(monitors.into_iter().map(
+                    |(monitor, period, ready_tx)| run_monitor(monitor, period, ready_tx),
+                )));
             })?;
 
-        ready_rx.await??;
+        for ready_rx in ready {
+            ready_rx
+                .await
+                .context("load shedding monitor thread exited before the first poll")?;
+        }
         Ok(())
     }
 
@@ -115,14 +115,24 @@ impl LoadShedder {
     }
 }
 
-async fn run_monitor(monitor: Arc<dyn MetricMonitor>, period: Duration) {
+/// Polls `monitor` every `period`, starting immediately. `ready_tx` is
+/// signalled after the first poll.
+async fn run_monitor(
+    monitor: Arc<dyn MetricMonitor>,
+    period: Duration,
+    ready_tx: oneshot::Sender<()>,
+) {
+    let mut ready_tx = Some(ready_tx);
     let mut interval = tokio::time::interval_at(Instant::now() + period, period);
     interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
     loop {
-        interval.tick().await;
         monitor.poll().await;
         metrics::gauge!("loadshedding.monitor.value", "monitor" => monitor.name())
             .set(monitor.last_value() as f64);
+        if let Some(ready_tx) = ready_tx.take() {
+            let _ = ready_tx.send(());
+        }
+        interval.tick().await;
     }
 }
 

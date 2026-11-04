@@ -38,8 +38,8 @@ fn env_u64(var: &str) -> Option<u64> {
     }
 }
 
-/// Without a hard limit the monitor is disabled. Without a soft limit the soft
-/// limit equals the hard limit. A soft limit above the hard limit is clamped.
+/// Without a hard limit the monitor is disabled. The soft limit defaults to,
+/// and is capped at, the hard limit.
 fn resolve_limits(
     hard_var: &str,
     hard: Option<u64>,
@@ -52,13 +52,9 @@ fn resolve_limits(
         }
         return None;
     };
-    let soft = soft.unwrap_or(hard);
-    if soft > hard {
-        tracing::warn!("{soft_var} is above {hard_var}; using {hard_var} as the soft limit");
-    }
     Some(Limits {
         hard,
-        soft: soft.min(hard),
+        soft: soft.unwrap_or(hard).min(hard),
     })
 }
 
