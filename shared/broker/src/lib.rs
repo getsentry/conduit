@@ -72,6 +72,26 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
+/// Acquires a connection from the pool, recording a metric when acquisition
+/// fails due to a timeout (waiting for a free connection, creating a new one,
+/// or recycling an existing one).
+async fn acquire_conn(
+    pool: &deadpool_redis::cluster::Pool,
+) -> Result<deadpool_redis::cluster::Connection> {
+    pool.get().await.map_err(|e| {
+        if let deadpool_redis::PoolError::Timeout(timeout_type) = &e {
+            let kind = match timeout_type {
+                deadpool_redis::TimeoutType::Wait => "wait",
+                deadpool_redis::TimeoutType::Create => "create",
+                deadpool_redis::TimeoutType::Recycle => "recycle",
+            };
+            metrics::counter!("redis.pool.connection_acquire.timeout", "timeout_type" => kind)
+                .increment(1);
+        }
+        Error::Pool(e)
+    })
+}
+
 #[automock]
 #[async_trait]
 pub trait RedisOperations: Send + Sync {
@@ -197,12 +217,12 @@ impl RedisClient {
 #[async_trait]
 impl RedisOperations for RedisClient {
     async fn ping(&self) -> Result<String> {
-        let mut conn = self.pool.get().await?;
+        let mut conn = acquire_conn(&self.pool).await?;
         conn.ping().await.map_err(Into::into)
     }
 
     async fn publish(&self, key: &StreamKey, data: Vec<u8>, max_len: usize) -> Result<String> {
-        let mut conn = self.pool.get().await?;
+        let mut conn = acquire_conn(&self.pool).await?;
         let id: String = conn
             .xadd_maxlen(
                 key.as_redis_key(),
@@ -220,7 +240,7 @@ impl RedisOperations for RedisClient {
         last_id: &str,
         opts: &StreamReadOptions,
     ) -> Result<StreamEvents> {
-        let mut conn = self.pool.get().await?;
+        let mut conn = acquire_conn(&self.pool).await?;
         let reply: StreamReadReply = conn
             .xread_options(&[&key.as_redis_key()], &[last_id], opts)
             .await?;
@@ -241,13 +261,13 @@ impl RedisOperations for RedisClient {
     }
 
     async fn set_ttl(&self, key: &StreamKey, seconds: i64) -> Result<bool> {
-        let mut conn = self.pool.get().await?;
+        let mut conn = acquire_conn(&self.pool).await?;
         let res: bool = conn.expire(key.as_redis_key(), seconds).await?;
         Ok(res)
     }
 
     async fn track_stream_update(&self, key: &StreamKey, timestamp: i64) -> Result<usize> {
-        let mut conn = self.pool.get().await?;
+        let mut conn = acquire_conn(&self.pool).await?;
         let shard_key = tracking_shard_key(key);
         let res: usize = conn.zadd(shard_key, key.as_redis_key(), timestamp).await?;
         Ok(res)
@@ -255,7 +275,7 @@ impl RedisOperations for RedisClient {
 
     async fn get_old_streams(&self, cutoff_timestamp: i64) -> Result<Vec<String>> {
         let futures = (0..TRACKING_SHARDS).map(|shard| async move {
-            let mut conn = self.pool.get().await?;
+            let mut conn = acquire_conn(&self.pool).await?;
             let shard_key = format!("{}:{{{}}}", STREAM_TIMESTAMPS, shard);
             let streams: Vec<String> = conn
                 .zrangebyscore(&shard_key, f64::NEG_INFINITY, cutoff_timestamp)
@@ -273,20 +293,20 @@ impl RedisOperations for RedisClient {
     }
 
     async fn untrack_stream(&self, key: &StreamKey) -> Result<usize> {
-        let mut conn = self.pool.get().await?;
+        let mut conn = acquire_conn(&self.pool).await?;
         let shard_key = tracking_shard_key(key);
         let res: usize = conn.zrem(shard_key, key.as_redis_key()).await?;
         Ok(res)
     }
 
     async fn delete_stream(&self, key: &str) -> Result<usize> {
-        let mut conn = self.pool.get().await?;
+        let mut conn = acquire_conn(&self.pool).await?;
         let res: usize = conn.del(key).await?;
         Ok(res)
     }
 
     async fn check_rate_limit(&self, key: &str, limit: usize, window_secs: i64) -> Result<bool> {
-        let mut conn = self.pool.get().await?;
+        let mut conn = acquire_conn(&self.pool).await?;
 
         let script = redis::Script::new(
             r#"
