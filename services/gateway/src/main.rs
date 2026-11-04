@@ -1,5 +1,6 @@
 use std::{
     net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
     time::Duration,
 };
 
@@ -11,6 +12,7 @@ use gateway::{
         health::{healthz_handler, readyz_handler},
         sse::sse_handler,
     },
+    loadshedding::LoadShedder,
     state::{AppState, JwtConfig},
 };
 use http::Method;
@@ -78,10 +80,14 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
 
     let jwt_config = JwtConfig::from_env()?;
 
+    let load_shedder = Arc::new(LoadShedder::from_env(&broker)?);
+    load_shedder.start();
+
     let state = AppState {
         redis: broker,
         start_time: Instant::now(),
         jwt_config,
+        load_shedder,
     };
 
     let redis_for_metrics = state.redis.clone();
