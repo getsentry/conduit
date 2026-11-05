@@ -4,41 +4,32 @@ use async_trait::async_trait;
 
 use super::MetricMonitor;
 
-/// A file with `<key> <value>` lines to read memory usage from.
+/// A cgroup stats file with `<key> <bytes>` lines.
 #[derive(Debug, Clone, Copy)]
 struct Source {
     path: &'static str,
     key: &'static str,
-    /// Multiplier converting the value to bytes.
-    unit: u64,
 }
 
-/// Tried in order; the first readable one is used.
-const SOURCES: [Source; 3] = [
-    // cgroup v2: anonymous memory of the container.
-    Source {
-        path: "/sys/fs/cgroup/memory.stat",
-        key: "anon",
-        unit: 1,
-    },
-    // cgroup v1
-    Source {
-        path: "/sys/fs/cgroup/memory/memory.stat",
-        key: "total_rss",
-        unit: 1,
-    },
-    // Not in a cgroup: this process's RSS, e.g. `VmRSS:   12345 kB`.
-    Source {
-        path: "/proc/self/status",
-        key: "VmRSS:",
-        unit: 1024,
-    },
-];
+const CGROUP_V2: Source = Source {
+    path: "/sys/fs/cgroup/memory.stat",
+    key: "anon",
+};
+
+const CGROUP_V1: Source = Source {
+    path: "/sys/fs/cgroup/memory/memory.stat",
+    key: "total_rss",
+};
+
+/// Only exists in non-root cgroups. If it's missing, `/sys/fs/cgroup` is the
+/// host's root cgroup (the container shares the host's cgroup namespace), and
+/// its `memory.stat` would be node-wide.
+const CGROUP_V2_NON_ROOT_MARKER: &str = "/sys/fs/cgroup/memory.current";
 
 impl Source {
     async fn read(&self) -> Option<u64> {
         let contents = tokio::fs::read_to_string(self.path).await.ok()?;
-        parse_field(&contents, self.key).map(|value| value * self.unit)
+        parse_field(&contents, self.key)
     }
 }
 
@@ -52,8 +43,8 @@ fn parse_field(contents: &str, key: &str) -> Option<u64> {
     })
 }
 
-/// Memory usage (in bytes) of the current container, read from cgroup stats
-/// (or `/proc/self/status` outside a cgroup). Linux only.
+/// Anonymous memory usage (in bytes) of the current container, read from its
+/// memory cgroup. Requires running in a container with its own cgroup.
 pub struct MemoryMonitor {
     source: Source,
     last_value: AtomicU64,
@@ -61,16 +52,26 @@ pub struct MemoryMonitor {
 
 impl MemoryMonitor {
     pub async fn new() -> anyhow::Result<Self> {
-        for source in SOURCES {
-            if let Some(value) = source.read().await {
-                return Ok(Self {
-                    source,
-                    last_value: AtomicU64::new(value),
-                });
-            }
-        }
-        let paths: Vec<_> = SOURCES.iter().map(|s| s.path).collect();
-        anyhow::bail!("no memory usage source found, tried: {}", paths.join(", "))
+        let source = if tokio::fs::try_exists(CGROUP_V2_NON_ROOT_MARKER)
+            .await
+            .unwrap_or(false)
+        {
+            CGROUP_V2
+        } else {
+            CGROUP_V1
+        };
+        let value = source.read().await.ok_or_else(|| {
+            anyhow::anyhow!(
+                "failed to read `{}` from {}; memory load shedding requires running \
+                 in a container with its own memory cgroup",
+                source.key,
+                source.path
+            )
+        })?;
+        Ok(Self {
+            source,
+            last_value: AtomicU64::new(value),
+        })
     }
 }
 
@@ -102,12 +103,6 @@ mod tests {
         assert_eq!(parse_field(contents, "anon"), Some(1048576));
         assert_eq!(parse_field(contents, "file"), Some(2097152));
         assert_eq!(parse_field(contents, "shmem"), None);
-    }
-
-    #[test]
-    fn test_parse_field_proc_status() {
-        let contents = "Name:\tgateway\nVmPeak:\t  20000 kB\nVmRSS:\t   12345 kB\n";
-        assert_eq!(parse_field(contents, "VmRSS:"), Some(12345));
     }
 
     #[test]
