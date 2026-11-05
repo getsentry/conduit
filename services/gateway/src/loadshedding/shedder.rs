@@ -115,22 +115,20 @@ impl LoadShedder {
     }
 }
 
-/// Polls `monitor` every `period`, starting immediately. `ready_tx` is
-/// signalled after the first poll.
+/// Polls `monitor` once and signals `ready_tx`, then polls every `period`.
 async fn run_monitor(
     monitor: Arc<dyn MetricMonitor>,
     period: Duration,
     ready_tx: oneshot::Sender<()>,
 ) {
-    let mut ready_tx = Some(ready_tx);
+    monitor.poll().await;
+    let _ = ready_tx.send(());
+
     let mut interval = tokio::time::interval_at(Instant::now() + period, period);
     interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
     loop {
-        monitor.poll().await;
-        if let Some(ready_tx) = ready_tx.take() {
-            let _ = ready_tx.send(());
-        }
         interval.tick().await;
+        monitor.poll().await;
     }
 }
 

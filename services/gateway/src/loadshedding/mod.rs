@@ -16,9 +16,22 @@
 
 mod config;
 mod memory;
-mod monitor;
 mod shedder;
 
+use async_trait::async_trait;
+
 pub use memory::MemoryMonitor;
-pub use monitor::MetricMonitor;
 pub use shedder::{LoadShedder, should_shed};
+
+/// A metric that is periodically polled on the load shedding monitor thread.
+#[async_trait]
+pub trait MetricMonitor: Send + Sync {
+    /// Polls the metric value from the system and stores it.
+    async fn poll(&self);
+
+    /// Returns the last polled value.
+    fn last_value(&self) -> u64;
+
+    /// Name used in logs and metric tags.
+    fn name(&self) -> &'static str;
+}
