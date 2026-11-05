@@ -30,7 +30,7 @@ use crate::{
 const SSE_DEFAULT_RETRY_MS: Duration = Duration::from_millis(500);
 const SSE_ERROR_RETRY_MS: Duration = Duration::from_secs(3);
 
-const STREAM_BLOCK_MS: usize = 1000;
+const DEFAULT_STREAM_BLOCK_MS: usize = 1000;
 const STREAM_MAX_EVENTS: usize = 20;
 const MAX_CONSECUTIVE_ERRORS: u64 = 10;
 const ERROR_BACKOFF_BASE_MS: u64 = 100;
@@ -87,9 +87,13 @@ pub fn create_event_stream<R: RedisOperations>(
         }
     }
 
+    let stream_block_ms = std::env::var("STREAM_BLOCK_MS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_STREAM_BLOCK_MS);
     let stream_key = StreamKey::new(org_id, channel_id);
     let stream_read_opts = StreamReadOptions::default()
-        .block(STREAM_BLOCK_MS)
+        .block(stream_block_ms)
         .count(STREAM_MAX_EVENTS);
     let mut last_id = last_event_id.unwrap_or_else(|| "0-0".to_string());
     let mut consecutive_errors = 0;
