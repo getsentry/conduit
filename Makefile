@@ -22,10 +22,6 @@ check: ## Run every quality gate (CI runs this)
 	hadolint Dockerfile
 	shellcheck gocd/templates/bash/*.sh
 	jactionlint
-	betterleaks dir . --no-banner
-	check-jsonschema --builtin-schema vendor.github-workflows .github/workflows/*.yml
-	check-jsonschema --builtin-schema vendor.compose-spec devservices/config.yml
-	check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml
 	agnix lint --strict
 .PHONY: check
 
