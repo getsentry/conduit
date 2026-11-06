@@ -1,46 +1,37 @@
-use std::sync::Arc;
+//! Process-wide count of connected SSE clients.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use async_trait::async_trait;
 
 use crate::loadshedding::MetricMonitor;
 
-/// Number of connected SSE clients. Clones share the same count.
-#[derive(Clone, Default)]
-pub struct ConcurrentClients(Arc<AtomicU64>);
+static CONCURRENT_CLIENTS: AtomicU64 = AtomicU64::new(0);
 
-impl ConcurrentClients {
-    pub fn inc(&self) {
-        self.0.fetch_add(1, Ordering::Relaxed);
-    }
+pub fn inc() {
+    CONCURRENT_CLIENTS.fetch_add(1, Ordering::Relaxed);
+}
 
-    pub fn dec(&self) {
-        self.0.fetch_sub(1, Ordering::Relaxed);
-    }
+pub fn dec() {
+    CONCURRENT_CLIENTS.fetch_sub(1, Ordering::Relaxed);
+}
 
-    pub fn get(&self) -> u64 {
-        self.0.load(Ordering::Relaxed)
-    }
+pub fn get() -> u64 {
+    CONCURRENT_CLIENTS.load(Ordering::Relaxed)
 }
 
 /// Load shedding monitor for the number of connected clients.
 ///
 /// Reads the counter live instead of polling it, so connection bursts are seen
 /// immediately. The monitor's configured period has no effect.
-pub struct ConcurrentClientsMonitor(ConcurrentClients);
-
-impl ConcurrentClientsMonitor {
-    pub fn new(clients: ConcurrentClients) -> Self {
-        Self(clients)
-    }
-}
+pub struct ConcurrentClientsMonitor;
 
 #[async_trait]
 impl MetricMonitor for ConcurrentClientsMonitor {
     async fn poll(&self) {}
 
     fn last_value(&self) -> u64 {
-        self.0.get()
+        get()
     }
 
     fn name(&self) -> &'static str {
@@ -52,24 +43,12 @@ impl MetricMonitor for ConcurrentClientsMonitor {
 mod tests {
     use super::*;
 
+    // The counter is shared with other tests running in parallel, so only
+    // check that the monitor reflects it, not exact values.
     #[test]
-    fn test_inc_dec() {
-        let clients = ConcurrentClients::default();
-        clients.inc();
-        clients.inc();
-        assert_eq!(clients.get(), 2);
-
-        clients.dec();
-        assert_eq!(clients.get(), 1);
-    }
-
-    #[test]
-    fn test_monitor_reads_counter_live() {
-        let clients = ConcurrentClients::default();
-        let monitor = ConcurrentClientsMonitor::new(clients.clone());
-        assert_eq!(monitor.last_value(), 0);
-
-        clients.inc();
-        assert_eq!(monitor.last_value(), 1, "visible without polling");
+    fn test_monitor_reads_counter() {
+        inc();
+        assert!(ConcurrentClientsMonitor.last_value() >= 1);
+        dec();
     }
 }
