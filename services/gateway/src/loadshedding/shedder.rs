@@ -172,15 +172,15 @@ mod tests {
         assert!(should_shed(100, 100, 100));
     }
 
-    /// Its value is incremented on every poll.
+    /// Test double: its value is incremented on every poll.
     #[derive(Clone, Default)]
-    struct CountingMonitor {
+    struct TestMonitor {
         value: Arc<AtomicU64>,
         threads: Arc<Mutex<Vec<Option<String>>>>,
     }
 
     #[async_trait]
-    impl MetricMonitor for CountingMonitor {
+    impl MetricMonitor for TestMonitor {
         async fn poll(&self) {
             self.value.fetch_add(1, Ordering::Relaxed);
             self.threads
@@ -194,14 +194,14 @@ mod tests {
         }
 
         fn name(&self) -> &'static str {
-            "counting"
+            "test"
         }
     }
 
     #[test]
     fn test_sheds_if_any_monitor_sheds() {
         // Not started, so the value isn't changed by polling.
-        let monitor = CountingMonitor::default();
+        let monitor = TestMonitor::default();
         monitor.value.store(10, Ordering::Relaxed);
 
         let mut shedder = LoadShedder::new();
@@ -231,7 +231,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_polls_on_dedicated_thread_with_configured_period() {
-        let monitor = CountingMonitor::default();
+        let monitor = TestMonitor::default();
         let mut shedder = LoadShedder::new();
         shedder.add(
             monitor.clone(),
