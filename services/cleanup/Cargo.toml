@@ -2,6 +2,7 @@
 name = "cleanup"
 version = "0.1.0"
 edition.workspace = true
+publish = false
 
 [dependencies]
 broker = { path = "../../shared/broker" }
@@ -13,7 +14,6 @@ dotenvy = { workspace = true }
 metrics = { workspace = true }
 redis = { workspace = true }
 serde = { workspace = true }
-thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }

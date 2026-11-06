@@ -1,0 +1,4 @@
+ignored:
+  # The dev stage runs as a named user on purpose; the prod stage is a
+  # distroless image whose user is managed by the base image.
+  - DL3066

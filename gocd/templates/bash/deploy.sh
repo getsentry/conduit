@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# regions-project-env-vars prints `export KEY=VALUE` lines; word splitting is
+# required to evaluate them.
+# shellcheck disable=SC2046
 eval $(regions-project-env-vars --region="${SENTRY_REGION}")
 
 /devinfra/scripts/get-cluster-credentials \
