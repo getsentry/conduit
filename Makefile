@@ -22,7 +22,7 @@ check: ## Run every quality gate (CI runs this)
 	hadolint Dockerfile
 	shellcheck gocd/templates/bash/*.sh
 	jactionlint
-	agnix lint --strict
+	agnix --strict
 .PHONY: check
 
 fix: ## Run safe autofixes
