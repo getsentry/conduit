@@ -8,8 +8,7 @@ use rand::{RngExt, rng};
 use tokio::sync::oneshot;
 use tokio::time::{Instant, MissedTickBehavior};
 
-use super::config::{MonitorConfig, monitor_config_from_env};
-use super::{MemoryMonitor, MetricMonitor};
+use super::{MetricMonitor, MonitorConfig};
 
 const MONITOR_THREAD_NAME: &str = "loadshedding-monitors";
 
@@ -38,17 +37,12 @@ pub struct LoadShedder {
 }
 
 impl LoadShedder {
-    /// Configures monitors from `LOADSHEDDING_*` env vars. A monitor is only
-    /// enabled if its hard limit is set.
-    pub async fn from_env() -> anyhow::Result<Self> {
-        let mut shedder = Self::default();
-        if let Some(config) = monitor_config_from_env("MEMORY") {
-            shedder.add(Arc::new(MemoryMonitor::new().await?), config);
-        }
-        Ok(shedder)
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    fn add(&mut self, monitor: Arc<dyn MetricMonitor>, config: MonitorConfig) {
+    /// Registers a monitor. Must be called before [`start`](Self::start).
+    pub fn add(&mut self, monitor: impl MetricMonitor + 'static, config: MonitorConfig) {
         tracing::info!(
             monitor = monitor.name(),
             hard_limit = config.limits.hard,
@@ -56,7 +50,10 @@ impl LoadShedder {
             period_ms = config.period.as_millis() as u64,
             "Load shedding monitor enabled"
         );
-        self.monitors.push(ConfiguredMonitor { monitor, config });
+        self.monitors.push(ConfiguredMonitor {
+            monitor: Arc::new(monitor),
+            config,
+        });
     }
 
     /// Starts polling monitors on a dedicated thread with its own runtime, so
@@ -139,7 +136,7 @@ mod tests {
 
     use async_trait::async_trait;
 
-    use super::super::config::Limits;
+    use super::super::Limits;
     use super::*;
 
     #[test]
@@ -175,10 +172,44 @@ mod tests {
         assert!(should_shed(100, 100, 100));
     }
 
-    #[derive(Default)]
+    struct FixedMonitor(u64);
+
+    #[async_trait]
+    impl MetricMonitor for FixedMonitor {
+        async fn poll(&self) {}
+
+        fn last_value(&self) -> u64 {
+            self.0
+        }
+
+        fn name(&self) -> &'static str {
+            "fixed"
+        }
+    }
+
+    fn config(hard: u64) -> MonitorConfig {
+        MonitorConfig {
+            limits: Limits { hard, soft: hard },
+            period: Duration::from_secs(1),
+        }
+    }
+
+    #[test]
+    fn test_sheds_if_any_monitor_sheds() {
+        let mut shedder = LoadShedder::new();
+        assert!(!shedder.should_shed(), "no monitors never sheds");
+
+        shedder.add(FixedMonitor(10), config(100));
+        assert!(!shedder.should_shed());
+
+        shedder.add(FixedMonitor(10), config(5));
+        assert!(shedder.should_shed());
+    }
+
+    #[derive(Clone, Default)]
     struct CountingMonitor {
-        polls: AtomicU64,
-        threads: Mutex<Vec<Option<String>>>,
+        polls: Arc<AtomicU64>,
+        threads: Arc<Mutex<Vec<Option<String>>>>,
     }
 
     #[async_trait]
@@ -202,8 +233,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_polls_on_dedicated_thread_with_configured_period() {
-        let monitor = Arc::new(CountingMonitor::default());
-        let mut shedder = LoadShedder::default();
+        let monitor = CountingMonitor::default();
+        let mut shedder = LoadShedder::new();
         shedder.add(
             monitor.clone(),
             MonitorConfig {
