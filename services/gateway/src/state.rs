@@ -4,7 +4,6 @@ use std::sync::Arc;
 use broker::RedisClient;
 use tokio::time::Instant;
 
-use crate::concurrent_clients::ConcurrentClients;
 use crate::loadshedding::LoadShedder;
 
 #[derive(Clone)]
@@ -13,7 +12,6 @@ pub struct AppState {
     pub start_time: Instant,
     pub jwt_config: JwtConfig,
     pub load_shedder: Arc<LoadShedder>,
-    pub concurrent_clients: ConcurrentClients,
 }
 
 #[derive(Clone)]

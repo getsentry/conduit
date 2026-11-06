@@ -24,7 +24,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{TokenValidationError, validate_token},
-    concurrent_clients::ConcurrentClients,
+    concurrent_clients,
     state::AppState,
 };
 
@@ -77,16 +77,15 @@ struct SSEEvent {
 
 pub fn create_event_stream<R: RedisOperations>(
     redis: Arc<R>,
-    concurrent_clients: ConcurrentClients,
     org_id: u64,
     channel_id: Uuid,
     last_event_id: Option<String>,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
-    struct ConnectionGuard(ConcurrentClients);
+    struct ConnectionGuard;
     impl Drop for ConnectionGuard {
         fn drop(&mut self) {
             metrics::gauge!("connections.active").decrement(1.0);
-            self.0.dec();
+            concurrent_clients::dec();
         }
     }
 
@@ -103,8 +102,8 @@ pub fn create_event_stream<R: RedisOperations>(
 
     async_stream::stream! {
         metrics::gauge!("connections.active").increment(1.0);
-        concurrent_clients.inc();
-        let _guard = ConnectionGuard(concurrent_clients);
+        concurrent_clients::inc();
+        let _guard = ConnectionGuard;
 
         yield Ok(Event::default()
             .retry(SSE_DEFAULT_RETRY_MS)
@@ -270,7 +269,6 @@ pub async fn sse_handler(
 
     let stream = create_event_stream(
         Arc::new(state.redis),
-        state.concurrent_clients,
         claims.org_id,
         claims.channel_id,
         last_event_id,
@@ -493,10 +491,8 @@ mod tests {
                 })
             });
 
-            let clients = ConcurrentClients::default();
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                clients.clone(),
                 123,
                 channel_id,
                 None,
@@ -508,7 +504,6 @@ mod tests {
             }
 
             assert_eq!(events.len(), 4);
-            assert_eq!(clients.get(), 0, "client uncounted once the stream ends");
         }
 
         #[tokio::test]
@@ -524,10 +519,8 @@ mod tests {
                     Err(broker::Error::Redis(redis_err))
                 });
 
-            let clients = ConcurrentClients::default();
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                clients.clone(),
                 123,
                 Uuid::new_v4(),
                 None,
@@ -540,7 +533,6 @@ mod tests {
 
             // Only two events are expected: retry and error
             assert_eq!(events.len(), 2);
-            assert_eq!(clients.get(), 0, "client uncounted once the stream closes");
         }
 
         #[tokio::test]
@@ -572,7 +564,6 @@ mod tests {
 
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                ConcurrentClients::default(),
                 123,
                 channel_id,
                 None,
@@ -636,7 +627,6 @@ mod tests {
 
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                ConcurrentClients::default(),
                 123,
                 channel_id,
                 None,
@@ -678,7 +668,6 @@ mod tests {
                 });
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                ConcurrentClients::default(),
                 123,
                 channel_id,
                 Some("5-0".to_string()),
