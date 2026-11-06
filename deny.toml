@@ -1,0 +1,56 @@
+[graph]
+all-features = true
+
+[output]
+feature-depth = 1
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+    # Marvin Attack: timing sidechannel in RSA PKCS#1 v1.5 decryption. No patch
+    # available (tracked in RustCrypto/RSA#626). Conduit verifies RS256 JWTs
+    # (public-key operation); the vulnerable decryption path is not used.
+    # Comes in via jsonwebtoken -> rsa. (review 2027-02-06)
+    "RUSTSEC-2023-0071",
+    # Timing variability in crypto-bigint operations intended to be constant
+    # time. No patched release of the 0.5 line; comes in via
+    # jsonwebtoken -> p256/p384 -> elliptic-curve. Same exposure as above:
+    # JWT verification with public keys, not secret-key operations.
+    # (review 2027-02-06)
+    "RUSTSEC-2026-0387",
+]
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "ISC",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    "0BSD",
+    # Functional Source License 1.1 (converts to Apache-2.0 after two years);
+    # used by Sentry's own sentry_protos crate.
+    "FSL-1.1-ALv2",
+]
+# Workspace crates are private and carry no license field.
+private = { ignore = true }
+
+[bans]
+multiple-versions = "warn"
+# Path dependencies inside the workspace have no version requirement by
+# design; only registry wildcards are a hazard.
+wildcards = "allow"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
