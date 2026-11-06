@@ -7,6 +7,8 @@ edition.workspace = true
 axum = { workspace = true }
 metrics-exporter-dogstatsd = { workspace = true }
 metrics = { workspace = true }
+# Unused directly: vendors OpenSSL for `sentry`, as the runtime image has no libssl.
+native-tls = { workspace = true }
 sentry = { workspace = true }
 serde = { workspace = true }
 tower = { workspace = true }

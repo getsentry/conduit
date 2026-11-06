@@ -26,6 +26,7 @@ jsonwebtoken = { version = "11.1.0", features = ["rust_crypto"] }
 metrics-exporter-dogstatsd = "0.9.8"
 metrics = "0.24.6"
 mockall = "0.15.0"
+native-tls = { version = "0.2.18", features = ["vendored"] }
 prost = "0.14.4"
 prost-types = "0.14.4"
 uuid = { version = "1.29.0", features = ["v4", "serde"] }
