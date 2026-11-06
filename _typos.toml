@@ -1,0 +1,2 @@
+[files]
+extend-exclude = ["target", "gocd/templates/vendor", "gocd/generated-pipelines", "Cargo.lock", "uv.lock"]

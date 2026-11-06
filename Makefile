@@ -11,3 +11,26 @@ gocd: ## Build GoCD pipelines
 	# Convert JSON to yaml
 	cd ./gocd/generated-pipelines && find . -type f \( -name '*.yaml' \) -print0 | xargs -n 1 -0 yq -p json -o yaml -i
 .PHONY: gocd
+
+check: ## Run every quality gate (CI runs this)
+	cargo fmt --all -- --check
+	cargo clippy --workspace --all-features --tests -- -D clippy::all
+	cargo machete
+	cargo deny check
+	typos
+	rumdl check .
+	hadolint Dockerfile
+	shellcheck gocd/templates/bash/*.sh
+	jactionlint
+	betterleaks dir . --no-banner
+	check-jsonschema --builtin-schema vendor.github-workflows .github/workflows/*.yml
+	check-jsonschema --builtin-schema vendor.compose-spec devservices/config.yml
+	check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml
+	agnix lint --strict
+.PHONY: check
+
+fix: ## Run safe autofixes
+	cargo fmt --all
+	rumdl fmt .
+	typos --write-changes
+.PHONY: fix

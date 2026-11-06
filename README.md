@@ -1,13 +1,16 @@
 # Conduit
 
-Conduit is the streaming service layer of Sentry's Real-Time Delivery Platform. It provides a scalable and multi-tenant way to deliver real-time data streams to clients.
+Conduit is the streaming service layer of Sentry's Real-Time Delivery Platform. It provides a
+scalable and multi-tenant way to deliver real-time data streams to clients.
 
 ## Overview
 
-Conduit is built as a Rust workspace consisting of multiple services that work together to provide reliable, high-performance real-time data streaming:
+Conduit is built as a Rust workspace consisting of multiple services that work together to provide
+reliable, high-performance real-time data streaming:
 
 - **Gateway Service**: Handles client connections and delivers real-time data streams via SSE
-- **Publish Service**: Accepts data from upstream services and publishes it to the appropriate streams
+- **Publish Service**: Accepts data from upstream services and publishes it to the appropriate
+  streams
 - **Cleanup Service**: Periodically cleans up abandoned streams
 - **Broker**: Shared library for Redis-based message brokering between services
 
@@ -32,20 +35,28 @@ style CS fill:#81c784
 
 ### Stream Management
 
-Streams are automatically tracked and cleaned up after inactivity (configurable via `CLEANUP_STREAM_IDLE_SEC`, default 120s).
+Streams are automatically tracked and cleaned up after inactivity (configurable via
+`CLEANUP_STREAM_IDLE_SEC`, default 120s).
 This prevents memory leaks from:
 
 - Crashed or disconnected publishers
 - Streams that never reach Phase::End
 - Network failures during publishing
 
-The cleanup service periodically scans for and deletes streams that haven't received any publishes within the inactivity threshold (scan interval configurable via `CLEANUP_INTERVAL_SEC`, default 120s). Active streams (receiving regular publishes) are kept alive indefinitely, supporting long-running or continuous streaming use cases.
+The cleanup service periodically scans for and deletes streams that haven't received any publishes
+within the inactivity threshold (scan interval configurable via `CLEANUP_INTERVAL_SEC`, default
+120s). Active streams (receiving regular publishes) are kept alive indefinitely, supporting
+long-running or continuous streaming use cases.
 
-**Note:** While streams themselves are unbounded in duration, client connections (on the Gateway service) may have separate timeout limits. This allows clients to reconnect to ongoing streams as needed.
+**Note:** While streams themselves are unbounded in duration, client connections (on the Gateway
+service) may have separate timeout limits. This allows clients to reconnect to ongoing streams as
+needed.
 
-When publishers signal stream completion by sending Phase::End, the stream is expired via Redis TTL. If TTL setting fails, the cleanup service handles deletion as a fallback.
+When publishers signal stream completion by sending Phase::End, the stream is expired via Redis TTL.
+If TTL setting fails, the cleanup service handles deletion as a fallback.
 
-**Note:** Publishers should implement retry logic for transient failures. The platform is designed for high frequency real-time streaming where retrying is a standard practice.
+**Note:** Publishers should implement retry logic for transient failures. The platform is designed
+for high frequency real-time streaming where retrying is a standard practice.
 
 ## Usage Examples
 
@@ -70,12 +81,15 @@ The following fields are used in the PublishRequest message ([see full proto def
 
 - **START**: Initiates a new stream. Should be the first message in any stream.
 - **DELTA**: Adds incremental data to an ongoing stream. Can have multiple DELTA messages.
-- **END**: Completes the stream and signals clients to close their connection. Also triggers a short TTL on the stream data in the broker.
-- **ERROR**: Indicates an error occurred during the stream. The stream does NOT automatically terminate.
+- **END**: Completes the stream and signals clients to close their connection. Also triggers a short
+  TTL on the stream data in the broker.
+- **ERROR**: Indicates an error occurred during the stream. The stream does NOT automatically
+  terminate.
 
 #### Payload Guidelines
 
-The `payload` field contains your application data and is typically used with DELTA phases. If payload is provided for other phases, they will NOT be processed by the client.
+The `payload` field contains your application data and is typically used with DELTA phases. If
+payload is provided for other phases, they will NOT be processed by the client.
 
 **Size Limits:**
 
@@ -91,7 +105,8 @@ The payload must be a valid JSON-like structure in the form of a `google/protobu
 - Exceeding returns `429 Too Many Requests` with `Retry-After` header
 - High-frequency publishers should batch messages
 
-**Retention:** Streams hold up to approximately 1200 messages. At maximum publish rate, this provides ~60 seconds of history to consumers to catch up after brief disconnections.
+**Retention:** Streams hold up to approximately 1200 messages. At maximum publish rate, this
+provides ~60 seconds of history to consumers to catch up after brief disconnections.
 
 #### Example: Streaming "hello, world!"
 
@@ -153,7 +168,8 @@ PublishRequest {
 
 ### Consuming a Stream
 
-Clients connect to the Gateway service at `GET /events/{org_id}?token=...&channel_id=...` and receive Server-Sent Events:
+Clients connect to the Gateway service at `GET /events/{org_id}?token=...&channel_id=...` and
+receive Server-Sent Events:
 
 ```json
 event: stream
@@ -168,12 +184,15 @@ data: {
 ```
 
 The Gateway converts protobuf messages to JSON and sends all fields except client_timestamp.
-However, the official client library only forwards payload data for DELTA phase messages to application code.
+However, the official client library only forwards payload data for DELTA phase messages to
+application code.
 
-Consumers can connect at any time during the stream lifecycle. When connecting, the Gateway delivers recent messages from the stream,
+Consumers can connect at any time during the stream lifecycle. When connecting, the Gateway delivers
+recent messages from the stream,
 enabling late-joining clients to receive already-published content.
 
-**Note:** Connection requires a valid JWT token. Once connected, the stream remains active even if the token expires. Streams are trimmed to
+**Note:** Connection requires a valid JWT token. Once connected, the stream remains active even if
+the token expires. Streams are trimmed to
 a maximum length, so connecting significantly late may result in missing earlier messages.
 
 #### Client Libraries
@@ -200,7 +219,7 @@ By default the sentry-sdk DSN is not provided.
 Conduit uses HS256/RS256 signatures on JWTs it creates. To generate a custom key
 pair you can run:
 
-```
+```bash
 # Create the private key
 openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:2048
 # Extract a public key from the private key
