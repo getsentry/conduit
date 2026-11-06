@@ -172,50 +172,17 @@ mod tests {
         assert!(should_shed(100, 100, 100));
     }
 
-    struct FixedMonitor(u64);
-
-    #[async_trait]
-    impl MetricMonitor for FixedMonitor {
-        async fn poll(&self) {}
-
-        fn last_value(&self) -> u64 {
-            self.0
-        }
-
-        fn name(&self) -> &'static str {
-            "fixed"
-        }
-    }
-
-    fn config(hard: u64) -> MonitorConfig {
-        MonitorConfig {
-            limits: Limits { hard, soft: hard },
-            period: Duration::from_secs(1),
-        }
-    }
-
-    #[test]
-    fn test_sheds_if_any_monitor_sheds() {
-        let mut shedder = LoadShedder::new();
-        assert!(!shedder.should_shed(), "no monitors never sheds");
-
-        shedder.add(FixedMonitor(10), config(100));
-        assert!(!shedder.should_shed());
-
-        shedder.add(FixedMonitor(10), config(5));
-        assert!(shedder.should_shed());
-    }
-
+    /// Its value is incremented on every poll.
     #[derive(Clone, Default)]
     struct CountingMonitor {
-        polls: Arc<AtomicU64>,
+        value: Arc<AtomicU64>,
         threads: Arc<Mutex<Vec<Option<String>>>>,
     }
 
     #[async_trait]
     impl MetricMonitor for CountingMonitor {
         async fn poll(&self) {
-            self.polls.fetch_add(1, Ordering::Relaxed);
+            self.value.fetch_add(1, Ordering::Relaxed);
             self.threads
                 .lock()
                 .unwrap()
@@ -223,12 +190,43 @@ mod tests {
         }
 
         fn last_value(&self) -> u64 {
-            self.polls.load(Ordering::Relaxed)
+            self.value.load(Ordering::Relaxed)
         }
 
         fn name(&self) -> &'static str {
             "counting"
         }
+    }
+
+    #[test]
+    fn test_sheds_if_any_monitor_sheds() {
+        // Not started, so the value isn't changed by polling.
+        let monitor = CountingMonitor::default();
+        monitor.value.store(10, Ordering::Relaxed);
+
+        let mut shedder = LoadShedder::new();
+        assert!(!shedder.should_shed(), "no monitors never sheds");
+
+        shedder.add(
+            monitor.clone(),
+            MonitorConfig {
+                limits: Limits {
+                    hard: 100,
+                    soft: 100,
+                },
+                period: Duration::from_secs(1),
+            },
+        );
+        assert!(!shedder.should_shed());
+
+        shedder.add(
+            monitor,
+            MonitorConfig {
+                limits: Limits { hard: 5, soft: 5 },
+                period: Duration::from_secs(1),
+            },
+        );
+        assert!(shedder.should_shed());
     }
 
     #[tokio::test]

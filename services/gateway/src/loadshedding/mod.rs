@@ -1,9 +1,5 @@
 //! Load shedding based on periodically polled metrics.
 //!
-//! The application registers [`MetricMonitor`]s with a [`LoadShedder`] via
-//! [`LoadShedder::add`], each with its own [`MonitorConfig`]. Monitors can be
-//! application-specific; [`MemoryMonitor`] is provided as a built-in.
-//!
 //! Monitors are polled on a dedicated OS thread running its own
 //! single-threaded tokio runtime, separate from the runtime serving requests.
 //! When [`LoadShedder::should_shed`] is called, every monitor's last value is

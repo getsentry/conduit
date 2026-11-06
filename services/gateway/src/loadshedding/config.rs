@@ -2,8 +2,6 @@ use std::time::Duration;
 
 const DEFAULT_PERIOD: Duration = Duration::from_secs(1);
 
-/// Shed at or above `hard`; between `soft` and `hard`, shed with a probability
-/// growing linearly from 0 to 1. See [`super::should_shed`].
 #[derive(Debug, PartialEq)]
 pub struct Limits {
     pub hard: u64,
@@ -18,9 +16,7 @@ pub struct MonitorConfig {
 }
 
 impl MonitorConfig {
-    /// Reads `LOADSHEDDING_<METRIC>_HARD_LIMIT`, `LOADSHEDDING_<METRIC>_SOFT_LIMIT`
-    /// and `LOADSHEDDING_<METRIC>_PERIOD_MS`. Returns `None` if the hard limit
-    /// isn't set, i.e. the monitor is disabled.
+    /// Returns `None` if `LOADSHEDDING_<METRIC>_HARD_LIMIT` isn't set.
     pub fn from_env(metric: &str) -> Option<Self> {
         let hard_var = format!("LOADSHEDDING_{metric}_HARD_LIMIT");
         let soft_var = format!("LOADSHEDDING_{metric}_SOFT_LIMIT");
