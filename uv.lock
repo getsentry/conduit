@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "sys_platform == 'darwin' or sys_platform == 'linux'",
@@ -10,22 +10,22 @@ supported-markers = [
 
 [[package]]
 name = "black"
-version = "26.3.1"
+version = "26.10.1"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "click", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "mypy-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "pathspec", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "platformdirs", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "pytokens", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "click" },
+    { name = "mypy-extensions" },
+    { name = "packaging" },
+    { name = "pathspec" },
+    { name = "platformdirs" },
+    { name = "pytokens" },
 ]
-sdist = { url = "https://sfw.security.sentry.io/pypi/packages/e1/c5/61175d618685d42b005847464b8fb4743a67b1b8fdb75e50e5a96c31a27a/black-26.3.1.tar.gz", hash = "sha256:2c50f5063a9641c7eed7795014ba37b0f5fa227f3d408b968936e24bc0566b07", size = 666155, upload-time = "2026-03-12T03:36:03.593Z" }
+sdist = { url = "https://sfw.security.sentry.io/pypi/packages/f8/65/a9611a6ec0a8c88d86e59385da02d68d9533f7e86a05913d20c67be54029/black-26.10.1.tar.gz", hash = "sha256:5f9f83beae62437e060dafd53d7f1fc327e3d3494f74d72ee5c2b73eb90fc4e7", size = 741979, upload-time = "2026-10-10T04:13:40.776Z" }
 wheels = [
-    { url = "https://sfw.security.sentry.io/pypi/packages/d5/da/e36e27c9cebc1311b7579210df6f1c86e50f2d7143ae4fcf8a5017dc8809/black-26.3.1-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:2d6bfaf7fd0993b420bed691f20f9492d53ce9a2bcccea4b797d34e947318a78", size = 1889234, upload-time = "2026-03-12T03:40:30.964Z" },
-    { url = "https://sfw.security.sentry.io/pypi/packages/0e/7b/9871acf393f64a5fa33668c19350ca87177b181f44bb3d0c33b2d534f22c/black-26.3.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:f89f2ab047c76a9c03f78d0d66ca519e389519902fa27e7a91117ef7611c0568", size = 1720522, upload-time = "2026-03-12T03:40:32.346Z" },
-    { url = "https://sfw.security.sentry.io/pypi/packages/03/87/e766c7f2e90c07fb7586cc787c9ae6462b1eedab390191f2b7fc7f6170a9/black-26.3.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b07fc0dab849d24a80a29cfab8d8a19187d1c4685d8a5e6385a5ce323c1f015f", size = 1787824, upload-time = "2026-03-12T03:40:33.636Z" },
-    { url = "https://sfw.security.sentry.io/pypi/packages/8e/0d/52d98722666d6fc6c3dd4c76df339501d6efd40e0ff95e6186a7b7f0befd/black-26.3.1-py3-none-any.whl", hash = "sha256:2bd5aa94fc267d38bb21a70d7410a89f1a1d318841855f698746f8e7f51acd1b", size = 207542, upload-time = "2026-03-12T03:36:01.668Z" },
+    { url = "https://sfw.security.sentry.io/pypi/packages/76/7b/e8d275b23f3023881c0b0d8ce3bbda0d100c79bdef87fb6518bf9e0c5040/black-26.10.1-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:8375962579d537364cc0efa19b1474481915d3a793f9fc0774901814c5e5b5f4", size = 2147731, upload-time = "2026-10-10T04:19:04.643Z" },
+    { url = "https://sfw.security.sentry.io/pypi/packages/ee/62/e44f86ee5fc7b893ee0ee935a79c785932da7758d2c339749d90a20ef213/black-26.10.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:d8b3a9074a680b3c5749633714e9ae3992a1e5a23343a97ad61cd9b119b444d2", size = 1981714, upload-time = "2026-10-10T04:19:06.287Z" },
+    { url = "https://sfw.security.sentry.io/pypi/packages/89/2f/e12ca76edfcd037fe9e7e7635d9468d1d51255cf25a01b2f8f97a38f147d/black-26.10.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:289282aa2e09d3162312a3be1788ff21b08e9ea9cc4a81e656024728b32428fb", size = 2047807, upload-time = "2026-10-10T04:19:08.193Z" },
+    { url = "https://sfw.security.sentry.io/pypi/packages/b1/28/9dd29175c1db777e6189e2a0bb5f37101adf19c3e509b236c8920f778d0b/black-26.10.1-py3-none-any.whl", hash = "sha256:28842f9a8207cc1df6eb983a35a14c5a0dfcd603d214fe82d84bef552afd2e3a", size = 239267, upload-time = "2026-10-10T04:13:38.808Z" },
 ]
 
 [[package]]
@@ -62,18 +62,18 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
-    { name = "black", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "devservices", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "pre-commit", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "sentry-devenv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "sentry-protos", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "black" },
+    { name = "devservices" },
+    { name = "pre-commit" },
+    { name = "sentry-devenv" },
+    { name = "sentry-protos" },
 ]
 
 [package.metadata]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "black", specifier = "==26.3.1" },
+    { name = "black", specifier = "==26.10.1" },
     { name = "devservices", specifier = ">=1.2.1" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "sentry-devenv", specifier = ">=1.22.2" },
@@ -85,11 +85,11 @@ name = "devservices"
 version = "1.5.4"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "sentry-devenv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "sentry-sdk", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "supervisor", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "packaging" },
+    { name = "pyyaml" },
+    { name = "sentry-devenv" },
+    { name = "sentry-sdk" },
+    { name = "supervisor" },
 ]
 sdist = { url = "https://sfw.security.sentry.io/pypi/packages/0b/c0/de7b8011040fdc0a25e42ca346425f28a2815e4c3453f9c4603ed20f4624/devservices-1.5.4.tar.gz", hash = "sha256:d8c96737d4fb1154dd85983ae2257625faf8af6efbdbd31d019c22e58b9cc165", size = 98909, upload-time = "2026-10-14T20:34:50.346Z" }
 wheels = [
@@ -119,7 +119,7 @@ name = "grpc-stubs"
 version = "1.53.0.6"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "grpcio", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "grpcio" },
 ]
 sdist = { url = "https://sfw.security.sentry.io/pypi/packages/16/8d/718393d12346c6ab842a1ad2b1a761c175e919ddce4a28c5dc63e4a5538c/grpc_stubs-1.53.0.6.tar.gz", hash = "sha256:70a0840747bd73c2c82fe819699bbf4fcf6d59bd0ed27a4713a240e0c697e1ff", size = 12954, upload-time = "2025-04-28T11:12:55.407Z" }
 wheels = [
@@ -131,7 +131,7 @@ name = "grpcio"
 version = "1.85.0"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://sfw.security.sentry.io/pypi/packages/5b/34/60907c03ef43039c1e91ed5bdfae41ada5648264f013cabc3f186600e571/grpcio-1.85.0.tar.gz", hash = "sha256:8aa2647afcbe5a87783e9626a2ece6277db33c6604c21690d19b5bd15609e36d", size = 14084753, upload-time = "2026-10-26T06:20:17.622Z" }
 wheels = [
@@ -212,11 +212,11 @@ name = "pre-commit"
 version = "4.7.0"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "cfgv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "identify", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "nodeenv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "pyyaml", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "virtualenv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "cfgv" },
+    { name = "identify" },
+    { name = "nodeenv" },
+    { name = "pyyaml" },
+    { name = "virtualenv" },
 ]
 sdist = { url = "https://sfw.security.sentry.io/pypi/packages/3a/c3/6965c2690ddce885ec75121572d065a5b94c5a5d8d3e657927ecda9fd715/pre_commit-4.7.0.tar.gz", hash = "sha256:1f3deee12b914c8fa184bd2b5953391c2e4f36763e403d4a23dc9983fa7c6e86", size = 198120, upload-time = "2026-10-12T20:45:40.32Z" }
 wheels = [
@@ -240,7 +240,7 @@ name = "python-discovery"
 version = "1.6.7"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "filelock", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "filelock" },
 ]
 sdist = { url = "https://sfw.security.sentry.io/pypi/packages/a3/0b/908da9ef8a14b600fc188eee8d63ede071996114613721153f6fc9ea3cd5/python_discovery-1.6.7.tar.gz", hash = "sha256:7f7c28568c8ec3d988d8bddbdbec8e65f08e8767e52f734e18b8b498549b9b70", size = 117807, upload-time = "2026-10-28T06:24:21.878Z" }
 wheels = [
@@ -291,8 +291,8 @@ name = "sentry-devenv"
 version = "1.30.1"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "sentry-sdk", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "typing-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "sentry-sdk" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://sfw.security.sentry.io/pypi/packages/ad/e1/324bb962d1bcb1e18aa00f9fd614c57c573df08072df6b5fd850a81cf298/sentry_devenv-1.30.1.tar.gz", hash = "sha256:cb625e4dc81bad5ccfe11cddc84f0fe86d0fd78298b70d71b2d810bb754a124d", size = 77926, upload-time = "2026-10-20T21:54:49.238Z" }
 wheels = [
@@ -304,9 +304,9 @@ name = "sentry-protos"
 version = "0.97.0"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "grpc-stubs", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "grpcio", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "protobuf", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "grpc-stubs" },
+    { name = "grpcio" },
+    { name = "protobuf" },
 ]
 sdist = { url = "https://sfw.security.sentry.io/pypi/packages/82/6a/7d69c3c1e45a1d19ce4ac590617eff1c50f2b4cfaf6cabeeb5ae8657c60f/sentry_protos-0.97.0.tar.gz", hash = "sha256:944477d662e31a64bf588022dd2cd44d8d395ec308e3eff9a4ff400e9baf541a", size = 273226, upload-time = "2026-10-28T19:12:05.217Z" }
 wheels = [
@@ -318,8 +318,8 @@ name = "sentry-sdk"
 version = "2.73.0"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "certifi", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "certifi" },
+    { name = "urllib3" },
 ]
 sdist = { url = "https://sfw.security.sentry.io/pypi/packages/c5/3b/1e47acf2456781c26e12007379ecc154bf310b8f64d40390d78b791d55c3/sentry_sdk-2.73.0.tar.gz", hash = "sha256:4a2ab97b16e4693c325ab361c7bbbb346dbc7d0bc0150922d795a25bac8d5280", size = 1079078, upload-time = "2026-10-22T09:08:49.63Z" }
 wheels = [
@@ -358,11 +358,11 @@ name = "virtualenv"
 version = "21.15.1"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
-    { name = "distlib", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "filelock", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "platformdirs", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "python-discovery", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "distlib" },
+    { name = "filelock" },
+    { name = "packaging" },
+    { name = "platformdirs" },
+    { name = "python-discovery" },
 ]
 sdist = { url = "https://sfw.security.sentry.io/pypi/packages/b2/24/20282bc8e69ff8dee680dc2b95e9dc81fa7e7894b14c1a8d06330e97fef7/virtualenv-21.15.1.tar.gz", hash = "sha256:e79c90b8f601701599c25905e02839924fede2c798d52325670d24fbdaab74ee", size = 5517048, upload-time = "2026-10-28T01:12:50.919Z" }
 wheels = [
