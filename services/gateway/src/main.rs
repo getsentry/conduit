@@ -8,6 +8,7 @@ use axum::{Router, routing::get};
 use broker::RedisClient;
 use dotenvy::dotenv;
 use gateway::{
+    concurrent_clients::{ConcurrentClients, ConcurrentClientsMonitor},
     handlers::{
         health::{healthz_handler, readyz_handler},
         sse::sse_handler,
@@ -73,10 +74,16 @@ fn main() -> anyhow::Result<()> {
 }
 
 /// Registers the load shedding monitors enabled via `LOADSHEDDING_*` env vars.
-async fn load_shedder() -> anyhow::Result<LoadShedder> {
+async fn load_shedder(concurrent_clients: &ConcurrentClients) -> anyhow::Result<LoadShedder> {
     let mut shedder = LoadShedder::new();
     if let Some(config) = MonitorConfig::from_env("MEMORY") {
         shedder.add(MemoryMonitor::new().await?, config);
+    }
+    if let Some(config) = MonitorConfig::from_env("CONCURRENT_CLIENTS") {
+        shedder.add(
+            ConcurrentClientsMonitor::new(concurrent_clients.clone()),
+            config,
+        );
     }
     Ok(shedder)
 }
@@ -89,7 +96,8 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
 
     let jwt_config = JwtConfig::from_env()?;
 
-    let load_shedder = load_shedder().await?;
+    let concurrent_clients = ConcurrentClients::default();
+    let load_shedder = load_shedder(&concurrent_clients).await?;
     load_shedder.start().await?;
     let load_shedder = Arc::new(load_shedder);
 
@@ -98,6 +106,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         start_time: Instant::now(),
         jwt_config,
         load_shedder,
+        concurrent_clients,
     };
 
     let redis_for_metrics = state.redis.clone();
