@@ -14,7 +14,6 @@ dotenvy = { workspace = true }
 metrics = { workspace = true }
 redis = { workspace = true }
 serde = { workspace = true }
-thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
