@@ -9,6 +9,7 @@ monitoring), deployed via GoCD pipelines generated from jsonnet.
 `make check` runs every quality gate (fmt, clippy, cargo-machete, cargo-deny,
 typos, rumdl, hadolint, shellcheck, jactionlint, agnix). It must pass before a
 change is done. CI runs the same command. `make fix` applies the safe autofixes.
+agnix exits 0 even on errors, so `make check` gates on its JSON output instead.
 
 ## Generated files
 
