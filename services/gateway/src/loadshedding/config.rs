@@ -15,16 +15,15 @@ pub struct MonitorConfig {
     pub period: Duration,
 }
 
-/// Reads `LOADSHEDDING_<METRIC>_HARD_LIMIT`, `LOADSHEDDING_<METRIC>_SOFT_LIMIT`
-/// and `LOADSHEDDING_<METRIC>_PERIOD_MS`. Returns `None` if the monitor is
-/// disabled.
-pub fn monitor_config_from_env(metric: &str) -> Option<MonitorConfig> {
-    let hard_var = format!("LOADSHEDDING_{metric}_HARD_LIMIT");
-    let soft_var = format!("LOADSHEDDING_{metric}_SOFT_LIMIT");
-    let period_var = format!("LOADSHEDDING_{metric}_PERIOD_MS");
-    let limits = resolve_limits(&hard_var, env_u64(&hard_var), &soft_var, env_u64(&soft_var))?;
-    let period = resolve_period(&period_var, env_u64(&period_var));
-    Some(MonitorConfig { limits, period })
+impl MonitorConfig {
+    pub fn from_env(metric: &str) -> Option<Self> {
+        let hard_var = format!("LOADSHEDDING_{metric}_HARD_LIMIT");
+        let soft_var = format!("LOADSHEDDING_{metric}_SOFT_LIMIT");
+        let period_var = format!("LOADSHEDDING_{metric}_PERIOD_MS");
+        let limits = resolve_limits(&hard_var, env_u64(&hard_var), &soft_var, env_u64(&soft_var))?;
+        let period = resolve_period(&period_var, env_u64(&period_var));
+        Some(Self { limits, period })
+    }
 }
 
 fn env_u64(var: &str) -> Option<u64> {
