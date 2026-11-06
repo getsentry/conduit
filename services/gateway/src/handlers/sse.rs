@@ -222,6 +222,14 @@ pub async fn sse_handler(
     Query(q): Query<SSEQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, axum::Error>>>, (StatusCode, String)> {
     metrics::counter!("connections.attempts").increment(1);
+
+    if state.load_shedder.should_shed() {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            "Server is overloaded".to_string(),
+        ));
+    }
+
     let claims = validate_token(
         &q.token,
         org_id,
