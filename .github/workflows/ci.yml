@@ -56,3 +56,48 @@ jobs:
 
       - name: Run tests
         run: cargo test
+
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt --no-self-update
+
+      - uses: swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          key: ${{ github.job }}
+
+      - name: Install check tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          cargo install --locked cargo-machete cargo-deny
+
+          cd "$(mktemp -d)"
+          curl -sSfLO https://github.com/hadolint/hadolint/releases/download/v2.15.1/hadolint-Linux-x86_64
+          curl -sSfLO https://github.com/crate-ci/typos/releases/download/v1.52.0/typos-v1.52.0-x86_64-unknown-linux-musl.tar.gz
+          curl -sSfLO https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz
+          curl -sSfLO https://github.com/jdx/jactionlint/releases/download/v2.5.0/jactionlint_2.5.0_linux_amd64.tar.gz
+          curl -sSfLO https://github.com/agent-sh/agnix/releases/download/v0.61.0/agnix-x86_64-unknown-linux-gnu.tar.gz
+          sha256sum -c <<'EOF'
+          c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507  hadolint-Linux-x86_64
+          6155d4114f9a0f5b8f6d4fda96266c9d5f6add71df80da7f684ee5e72eb14588  typos-v1.52.0-x86_64-unknown-linux-musl.tar.gz
+          395c4061041c5a25301c7b3564a93c4a661ed4df93427a77b6fc9e426ec8a13a  rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz
+          5ac307b0499bb0eab45ae99c23e8e0790874fbc667c75224410954e0e3c6e0f5  jactionlint_2.5.0_linux_amd64.tar.gz
+          cfc8f4c5a51d023bbc8742fb84f420b12d3d49b621c8ccfb7382c5f73944ad09  agnix-x86_64-unknown-linux-gnu.tar.gz
+          EOF
+          install -m 755 hadolint-Linux-x86_64 /usr/local/bin/hadolint
+          tar -xzf typos-v1.52.0-x86_64-unknown-linux-musl.tar.gz -C /usr/local/bin ./typos
+          tar -xzf rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz -C /usr/local/bin --strip-components=1
+          tar -xzf jactionlint_2.5.0_linux_amd64.tar.gz -C /usr/local/bin jactionlint
+          tar -xzf agnix-x86_64-unknown-linux-gnu.tar.gz -C /usr/local/bin agnix
+
+      - name: Run all quality gates
+        run: make check
