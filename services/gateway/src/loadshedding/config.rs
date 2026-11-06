@@ -16,7 +16,6 @@ pub struct MonitorConfig {
 }
 
 impl MonitorConfig {
-    /// Returns `None` if `LOADSHEDDING_<METRIC>_HARD_LIMIT` isn't set.
     pub fn from_env(metric: &str) -> Option<Self> {
         let hard_var = format!("LOADSHEDDING_{metric}_HARD_LIMIT");
         let soft_var = format!("LOADSHEDDING_{metric}_SOFT_LIMIT");
