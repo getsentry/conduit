@@ -95,7 +95,7 @@ jobs:
           EOF
           install -m 755 hadolint-Linux-x86_64 /usr/local/bin/hadolint
           tar -xzf typos-v1.52.0-x86_64-unknown-linux-musl.tar.gz -C /usr/local/bin ./typos
-          tar -xzf rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz -C /usr/local/bin --strip-components=1
+          tar -xzf rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz -C /usr/local/bin rumdl
           tar -xzf jactionlint_2.5.0_linux_amd64.tar.gz -C /usr/local/bin jactionlint
           tar -xzf agnix-x86_64-unknown-linux-gnu.tar.gz -C /usr/local/bin agnix
 
