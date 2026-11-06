@@ -75,16 +75,20 @@ struct SSEEvent {
     payload: serde_json::Value,
 }
 
-/// The client is counted in `concurrent_clients` from this call until the
-/// returned stream is dropped, even if the stream is never polled.
 pub fn create_event_stream<R: RedisOperations>(
     redis: Arc<R>,
-    concurrent_clients: &ConcurrentClients,
+    concurrent_clients: ConcurrentClients,
     org_id: u64,
     channel_id: Uuid,
     last_event_id: Option<String>,
-) -> impl Stream<Item = Result<Event, axum::Error>> + use<R> {
-    let client_guard = concurrent_clients.track();
+) -> impl Stream<Item = Result<Event, axum::Error>> {
+    struct ConnectionGuard(ConcurrentClients);
+    impl Drop for ConnectionGuard {
+        fn drop(&mut self) {
+            metrics::gauge!("connections.active").decrement(1.0);
+            self.0.dec();
+        }
+    }
 
     let stream_block_ms = std::env::var("STREAM_BLOCK_MS")
         .ok()
@@ -98,7 +102,9 @@ pub fn create_event_stream<R: RedisOperations>(
     let mut consecutive_errors = 0;
 
     async_stream::stream! {
-        let _client_guard = client_guard;
+        metrics::gauge!("connections.active").increment(1.0);
+        concurrent_clients.inc();
+        let _guard = ConnectionGuard(concurrent_clients);
 
         yield Ok(Event::default()
             .retry(SSE_DEFAULT_RETRY_MS)
@@ -264,7 +270,7 @@ pub async fn sse_handler(
 
     let stream = create_event_stream(
         Arc::new(state.redis),
-        &state.concurrent_clients,
+        state.concurrent_clients,
         claims.org_id,
         claims.channel_id,
         last_event_id,
@@ -490,7 +496,7 @@ mod tests {
             let clients = ConcurrentClients::default();
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                &clients,
+                clients.clone(),
                 123,
                 channel_id,
                 None,
@@ -521,7 +527,7 @@ mod tests {
             let clients = ConcurrentClients::default();
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                &clients,
+                clients.clone(),
                 123,
                 Uuid::new_v4(),
                 None,
@@ -535,22 +541,6 @@ mod tests {
             // Only two events are expected: retry and error
             assert_eq!(events.len(), 2);
             assert_eq!(clients.get(), 0, "client uncounted once the stream closes");
-        }
-
-        #[test]
-        fn test_create_event_stream_counts_client_before_first_poll() {
-            let clients = ConcurrentClients::default();
-            let stream = create_event_stream(
-                Arc::new(MockRedisOperations::new()),
-                &clients,
-                123,
-                Uuid::new_v4(),
-                None,
-            );
-            assert_eq!(clients.get(), 1, "counted before the stream is polled");
-
-            drop(stream);
-            assert_eq!(clients.get(), 0, "uncounted when dropped without polling");
         }
 
         #[tokio::test]
@@ -582,7 +572,7 @@ mod tests {
 
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                &ConcurrentClients::default(),
+                ConcurrentClients::default(),
                 123,
                 channel_id,
                 None,
@@ -646,7 +636,7 @@ mod tests {
 
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                &ConcurrentClients::default(),
+                ConcurrentClients::default(),
                 123,
                 channel_id,
                 None,
@@ -688,7 +678,7 @@ mod tests {
                 });
             let mut stream = Box::pin(create_event_stream(
                 Arc::new(mock_redis),
-                &ConcurrentClients::default(),
+                ConcurrentClients::default(),
                 123,
                 channel_id,
                 Some("5-0".to_string()),

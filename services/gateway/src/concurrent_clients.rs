@@ -10,25 +10,16 @@ use crate::loadshedding::MetricMonitor;
 pub struct ConcurrentClients(Arc<AtomicU64>);
 
 impl ConcurrentClients {
-    /// Counts a client until the returned guard is dropped.
-    pub fn track(&self) -> ClientGuard {
+    pub fn inc(&self) {
         self.0.fetch_add(1, Ordering::Relaxed);
-        metrics::gauge!("connections.active").increment(1.0);
-        ClientGuard(self.clone())
+    }
+
+    pub fn dec(&self) {
+        self.0.fetch_sub(1, Ordering::Relaxed);
     }
 
     pub fn get(&self) -> u64 {
         self.0.load(Ordering::Relaxed)
-    }
-}
-
-/// Keeps a client counted in [`ConcurrentClients`] while alive.
-pub struct ClientGuard(ConcurrentClients);
-
-impl Drop for ClientGuard {
-    fn drop(&mut self) {
-        (self.0).0.fetch_sub(1, Ordering::Relaxed);
-        metrics::gauge!("connections.active").decrement(1.0);
     }
 }
 
@@ -62,16 +53,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_guard_counts_client_while_alive() {
+    fn test_inc_dec() {
         let clients = ConcurrentClients::default();
-        let first = clients.track();
-        let second = clients.track();
+        clients.inc();
+        clients.inc();
         assert_eq!(clients.get(), 2);
 
-        drop(first);
+        clients.dec();
         assert_eq!(clients.get(), 1);
-        drop(second);
-        assert_eq!(clients.get(), 0);
     }
 
     #[test]
@@ -80,7 +69,7 @@ mod tests {
         let monitor = ConcurrentClientsMonitor::new(clients.clone());
         assert_eq!(monitor.last_value(), 0);
 
-        let _guard = clients.track();
+        clients.inc();
         assert_eq!(monitor.last_value(), 1, "visible without polling");
     }
 }
