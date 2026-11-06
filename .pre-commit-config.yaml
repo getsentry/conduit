@@ -8,6 +8,8 @@ repos:
     - id: check-symlinks
     - id: end-of-file-fixer
       exclude_types: [svg]
+      # Apache license boilerplate ships without a trailing newline.
+      exclude: ^LICENSE\.md$
     - id: trailing-whitespace
       exclude_types: [svg]
     - id: check-added-large-files
@@ -24,3 +26,34 @@ repos:
       # rustfmt can do it but doesn't read Cargo.toml.
       # https://github.com/rust-lang/rustfmt/issues/4485
       entry: rustfmt --edition=2024
+
+    - id: typos
+      name: spell check
+      language: system
+      entry: typos
+      pass_filenames: true
+
+    - id: rumdl
+      name: markdown lint
+      language: system
+      types: [markdown]
+      entry: rumdl check
+
+    - id: shellcheck
+      name: shell lint
+      language: system
+      types: [shell]
+      entry: shellcheck
+
+    - id: hadolint
+      name: dockerfile lint
+      language: system
+      files: (^|/)Dockerfile$
+      entry: hadolint
+
+    - id: jactionlint
+      name: github actions lint
+      language: system
+      files: ^\.github/(workflows/[^/]+\.ya?ml|dependabot\.yml)$
+      entry: jactionlint
+      pass_filenames: false
