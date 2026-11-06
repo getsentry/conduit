@@ -31,7 +31,7 @@ EXPOSE 8080
 CMD ["/app/service"]
 
 # Runtime image
-FROM gcr.io/distroless/cc-debian13:nonroot AS prod
+FROM us-docker.pkg.dev/sentryio/dhi-mirror/static:20250419-glibc-debian13 AS prod
 
 ARG SERVICE_NAME
 
