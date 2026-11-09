@@ -12,7 +12,7 @@ use gateway::{
         health::{healthz_handler, readyz_handler},
         sse::sse_handler,
     },
-    loadshedding::LoadShedder,
+    loadshedding::{LoadShedder, MemoryMonitor, MonitorConfig},
     state::{AppState, JwtConfig},
 };
 use http::Method;
@@ -72,6 +72,15 @@ fn main() -> anyhow::Result<()> {
     runtime.block_on(async_main())
 }
 
+/// Registers the load shedding monitors enabled via `LOADSHEDDING_*` env vars.
+async fn load_shedder() -> anyhow::Result<LoadShedder> {
+    let mut shedder = LoadShedder::new();
+    if let Some(config) = MonitorConfig::from_env("MEMORY") {
+        shedder.add(MemoryMonitor::new().await?, config);
+    }
+    Ok(shedder)
+}
+
 async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let port = std::env::var("GATEWAY_PORT")?;
     let redis_url = std::env::var("REDIS_URL")?;
@@ -80,8 +89,9 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
 
     let jwt_config = JwtConfig::from_env()?;
 
-    let load_shedder = Arc::new(LoadShedder::from_env().await?);
+    let load_shedder = load_shedder().await?;
     load_shedder.start().await?;
+    let load_shedder = Arc::new(load_shedder);
 
     let state = AppState {
         redis: broker,
