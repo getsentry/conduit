@@ -24,6 +24,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{TokenValidationError, validate_token},
+    concurrent_clients,
     state::AppState,
 };
 
@@ -84,6 +85,7 @@ pub fn create_event_stream<R: RedisOperations>(
     impl Drop for ConnectionGuard {
         fn drop(&mut self) {
             metrics::gauge!("connections.active").decrement(1.0);
+            concurrent_clients::dec();
         }
     }
 
@@ -100,6 +102,7 @@ pub fn create_event_stream<R: RedisOperations>(
 
     async_stream::stream! {
         metrics::gauge!("connections.active").increment(1.0);
+        concurrent_clients::inc();
         let _guard = ConnectionGuard;
 
         yield Ok(Event::default()

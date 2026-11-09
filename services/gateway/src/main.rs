@@ -8,6 +8,7 @@ use axum::{Router, routing::get};
 use broker::RedisClient;
 use dotenvy::dotenv;
 use gateway::{
+    concurrent_clients::ConcurrentClientsMonitor,
     handlers::{
         health::{healthz_handler, readyz_handler},
         sse::sse_handler,
@@ -77,6 +78,9 @@ async fn load_shedder() -> anyhow::Result<LoadShedder> {
     let mut shedder = LoadShedder::new();
     if let Some(config) = MonitorConfig::from_env("MEMORY") {
         shedder.add(MemoryMonitor::new().await?, config);
+    }
+    if let Some(config) = MonitorConfig::from_env("CONCURRENT_CLIENTS") {
+        shedder.add(ConcurrentClientsMonitor, config);
     }
     Ok(shedder)
 }
