@@ -14,26 +14,8 @@ COPY shared shared/
 
 RUN cargo build --release
 
-# Development image
-FROM rust:1 AS dev
-
-WORKDIR /app
-
-RUN groupadd --gid 1000 conduit && useradd --uid 1000 --gid 1000 conduit
-
-COPY --from=build /app/target/release/gateway /app/target/release/publish /app/target/release/cleanup /usr/local/bin/
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-
-RUN chown -R conduit:conduit /usr/local/bin/gateway /usr/local/bin/publish /usr/local/bin/cleanup /usr/local/bin/entrypoint.sh
-
-USER conduit:conduit
-
-EXPOSE 8080
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-
 # Runtime image
-FROM us-docker.pkg.dev/sentryio/dhi-mirror/static:20250419-glibc-debian13 AS prod
+FROM us-docker.pkg.dev/sentryio/dhi-mirror/static:20250419-glibc-debian13
 
 COPY --from=build /app/target/release/gateway /app/target/release/publish /app/target/release/cleanup /usr/local/bin/
 # The static base image has no shell; copy one from the build stage for the
