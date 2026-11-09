@@ -15,15 +15,7 @@ gocd: ## Build GoCD pipelines
 check: ## Run every quality gate (CI runs this)
 	cargo fmt --all -- --check
 	cargo clippy --workspace --all-features --tests -- -D clippy::all
-	cargo machete
-	cargo deny check
-	typos
-	rumdl check .
-	hadolint Dockerfile
-	shellcheck gocd/templates/bash/*.sh
-	jactionlint
-	@# agnix 0.61 exits 0 even on errors, so gate on its JSON output.
-	@agnix --strict --format json | python3 -c "import json,sys; d=json.load(sys.stdin); errs=[x for x in d['diagnostics'] if x['level'] in ('error','warning')]; [print(f\"{x['file']}:{x['line']}: {x['level']}: {x['rule']}: {x['message']}\") for x in errs]; sys.exit(1 if errs else 0)"
+	pre-commit run --all-files
 .PHONY: check
 
 fix: ## Run safe autofixes

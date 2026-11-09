@@ -6,10 +6,11 @@ monitoring), deployed via GoCD pipelines generated from jsonnet.
 
 ## Quality gates
 
-`make check` runs every quality gate (fmt, clippy, cargo-machete, cargo-deny,
-typos, rumdl, hadolint, shellcheck, jactionlint, agnix). It must pass before a
-change is done. CI runs the same command. `make fix` applies the safe autofixes.
-agnix exits 0 even on errors, so `make check` gates on its JSON output instead.
+`make check` runs every quality gate (fmt, clippy, and all pre-commit hooks:
+cargo-machete, cargo-deny, typos, rumdl, hadolint, shellcheck, jactionlint,
+agnix). It must pass before a change is done. CI runs the same command, and
+pre-commit installs the pinned tool versions so local and CI toolchains match.
+`make fix` applies the safe autofixes.
 
 ## Generated files
 

@@ -73,31 +73,17 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - name: Install check tools
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
-          cargo install --locked cargo-machete cargo-deny
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
 
-          cd "$(mktemp -d)"
-          curl -sSfLO https://github.com/hadolint/hadolint/releases/download/v2.15.1/hadolint-Linux-x86_64
-          curl -sSfLO https://github.com/crate-ci/typos/releases/download/v1.52.0/typos-v1.52.0-x86_64-unknown-linux-musl.tar.gz
-          curl -sSfLO https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz
-          curl -sSfLO https://github.com/jdx/jactionlint/releases/download/v2.5.0/jactionlint_2.5.0_linux_amd64.tar.gz
-          curl -sSfLO https://github.com/agent-sh/agnix/releases/download/v0.61.0/agnix-x86_64-unknown-linux-gnu.tar.gz
-          sha256sum -c <<'EOF'
-          c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507  hadolint-Linux-x86_64
-          6155d4114f9a0f5b8f6d4fda96266c9d5f6add71df80da7f684ee5e72eb14588  typos-v1.52.0-x86_64-unknown-linux-musl.tar.gz
-          395c4061041c5a25301c7b3564a93c4a661ed4df93427a77b6fc9e426ec8a13a  rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz
-          5ac307b0499bb0eab45ae99c23e8e0790874fbc667c75224410954e0e3c6e0f5  jactionlint_2.5.0_linux_amd64.tar.gz
-          cfc8f4c5a51d023bbc8742fb84f420b12d3d49b621c8ccfb7382c5f73944ad09  agnix-x86_64-unknown-linux-gnu.tar.gz
-          EOF
-          install -m 755 hadolint-Linux-x86_64 /usr/local/bin/hadolint
-          tar -xzf typos-v1.52.0-x86_64-unknown-linux-musl.tar.gz -C /usr/local/bin ./typos
-          tar -xzf rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz -C /usr/local/bin rumdl
-          tar -xzf jactionlint_2.5.0_linux_amd64.tar.gz -C /usr/local/bin jactionlint
-          tar -xzf agnix-x86_64-unknown-linux-gnu.tar.gz -C /usr/local/bin agnix
+      - name: Install pre-commit
+        run: pip install pre-commit==4.7.0
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
       - name: Run all quality gates
         run: make check

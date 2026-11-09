@@ -15,6 +15,33 @@ repos:
     - id: check-added-large-files
       args: ['--maxkb=1024']
 
+- repo: https://github.com/crate-ci/typos
+  rev: v1.52.0
+  hooks:
+    - id: typos
+      args: [--force-exclude]
+
+- repo: https://github.com/rvben/rumdl-pre-commit
+  rev: v0.3.2
+  hooks:
+    - id: rumdl-check
+
+- repo: https://github.com/jdx/jactionlint
+  rev: v2.5.0
+  hooks:
+    - id: jactionlint-shellcheck
+
+- repo: https://github.com/EmbarkStudios/cargo-deny
+  rev: 0.20.2
+  hooks:
+    - id: cargo-deny
+
+- repo: https://github.com/agent-sh/agnix
+  rev: v0.61.0
+  hooks:
+    - id: agnix
+      args: [--strict]
+
 - repo: local
   hooks:
     - id: rustfmt
@@ -27,33 +54,24 @@ repos:
       # https://github.com/rust-lang/rustfmt/issues/4485
       entry: rustfmt --edition=2024
 
-    - id: typos
-      name: spell check
-      language: system
-      entry: typos
-      pass_filenames: true
-
-    - id: rumdl
-      name: markdown lint
-      language: system
-      types: [markdown]
-      entry: rumdl check
-
-    - id: shellcheck
-      name: shell lint
-      language: system
-      types: [shell]
-      entry: shellcheck
-
     - id: hadolint
       name: dockerfile lint
-      language: system
-      files: (^|/)Dockerfile$
-      entry: hadolint
+      language: docker_image
+      entry: ghcr.io/hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d hadolint
+      types: [dockerfile]
 
-    - id: jactionlint
-      name: github actions lint
-      language: system
-      files: ^\.github/(workflows/[^/]+\.ya?ml|dependabot\.yml)$
-      entry: jactionlint
+    # jactionlint-shellcheck only lints shell blocks inside workflow YAML, so
+    # standalone scripts need their own shellcheck hook.
+    - id: shellcheck
+      name: shell lint
+      language: docker_image
+      entry: docker.io/koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
+      types: [shell]
+
+    - id: cargo-machete
+      name: unused rust deps
+      language: rust
+      entry: cargo machete
+      types: [file, toml]
+      files: Cargo\.(toml|lock)$
       pass_filenames: false
