@@ -3,11 +3,7 @@
 checks-githubactions-checkruns2 \
   getsentry/conduit \
   "${GO_REVISION_CONDUIT_REPO}" \
-  "build-gateway-prod-amd64" \
-  "build-publish-prod-amd64" \
-  "build-cleanup-prod-amd64" \
-  "build-gateway-prod-arm64" \
-  "build-publish-prod-arm64" \
-  "build-cleanup-prod-arm64" \
+  "build-all-amd64" \
+  "build-all-arm64" \
   "Tests (ubuntu)" \
   --timeout-mins=10

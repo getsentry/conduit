@@ -5,9 +5,15 @@ on:
     branches:
       - main
       - release/**
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
@@ -22,6 +28,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Build and push image
         uses: getsentry/action-build-and-push-images@dd9b907092cdd2dbc6c1a409f7290df1b391f6ee
@@ -37,6 +45,7 @@ jobs:
 
   assemble:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [build]
     if: github.event_name != 'pull_request'
     permissions:
@@ -45,6 +54,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - run: docker login --username '${{ github.actor }}' --password-stdin ghcr.io <<< "$GHCR_TOKEN"
         env:
@@ -65,6 +76,7 @@ jobs:
 # Copy manifest from GHCR to Google Artifact Registry, referenced Relay (https://github.com/getsentry/relay/blob/21c2e18ebe6f834a4ce4e149c6a43e4bec1e90f8/.github/workflows/ci.yml)
   copy-manifest-to-gar:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [assemble]
     if: github.event_name != 'pull_request'
     permissions:
