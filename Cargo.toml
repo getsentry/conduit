@@ -11,7 +11,7 @@ resolver = "2"
 edition = "2024"
 
 [workspace.dependencies]
-sentry_protos = "0.97.0"
+sentry_protos = "0.100.0"
 anyhow = "1.0.104"
 async-stream = "0.3.6"
 async-trait = "0.1.92"
