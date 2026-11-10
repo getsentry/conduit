@@ -68,10 +68,7 @@ repos:
       entry: docker.io/koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
       types: [shell]
 
+- repo: https://github.com/bnjbvr/cargo-machete
+  rev: v0.9.2
+  hooks:
     - id: cargo-machete
-      name: unused rust deps
-      language: rust
-      entry: cargo machete
-      types: [file, toml]
-      files: Cargo\.(toml|lock)$
-      pass_filenames: false
