@@ -2,6 +2,7 @@
 name = "broker"
 version = "0.1.0"
 edition.workspace = true
+publish = false
 
 [dependencies]
 async-trait = { workspace = true }
@@ -11,6 +12,5 @@ metrics = { workspace = true }
 mockall = { workspace = true }
 redis = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
 uuid = { workspace = true }
 xxhash-rust = { workspace = true }

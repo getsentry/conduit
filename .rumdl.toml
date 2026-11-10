@@ -1,0 +1,11 @@
+[global]
+exclude = ["target", "gocd/templates/vendor", "gocd/generated-pipelines", "LICENSE.md"]
+
+[MD013]
+line-length = 100
+code-blocks = false
+tables = false
+
+[MD033]
+# inline HTML is used for <br/> in the architecture diagram table
+allowed-elements = ["br"]
