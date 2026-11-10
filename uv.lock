@@ -74,7 +74,7 @@ dev = [
 [package.metadata.requires-dev]
 dev = [
     { name = "black", specifier = "==26.10.1" },
-    { name = "devservices", specifier = ">=1.2.1" },
+    { name = "devservices", specifier = ">=1.5.5" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "sentry-devenv", specifier = ">=1.22.2" },
     { name = "sentry-protos", specifier = ">=0.2.0" },
@@ -82,7 +82,7 @@ dev = [
 
 [[package]]
 name = "devservices"
-version = "1.5.4"
+version = "1.5.5"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
     { name = "packaging" },
@@ -91,9 +91,9 @@ dependencies = [
     { name = "sentry-sdk" },
     { name = "supervisor" },
 ]
-sdist = { url = "https://sfw.security.sentry.io/pypi/packages/0b/c0/de7b8011040fdc0a25e42ca346425f28a2815e4c3453f9c4603ed20f4624/devservices-1.5.4.tar.gz", hash = "sha256:d8c96737d4fb1154dd85983ae2257625faf8af6efbdbd31d019c22e58b9cc165", size = 98909, upload-time = "2026-10-14T20:34:50.346Z" }
+sdist = { url = "https://sfw.security.sentry.io/pypi/packages/ab/86/107895dc3be3b716254a12d00bbcb8613830e12ec1b94c1199d0f6fe66ed/devservices-1.5.5.tar.gz", hash = "sha256:810b0064380dd19639e11b5049041bc70f9d59535e13aaebb9b7943073d3b1e0", size = 98692, upload-time = "2026-10-29T17:21:36.941Z" }
 wheels = [
-    { url = "https://sfw.security.sentry.io/pypi/packages/28/b9/dec933d0475e39fe2774956e0dc29cecb472306557646ded80d6724fe1dc/devservices-1.5.4-py3-none-any.whl", hash = "sha256:5bab7233d6bffd963302f99c86246ef9776c5316a1aa1f601c66a37dcbc95dd7", size = 127114, upload-time = "2026-10-14T20:34:49.123Z" },
+    { url = "https://sfw.security.sentry.io/pypi/packages/fd/fd/3eec1abd642d5241cdfdb3e11b0d4008c0dba42141c6abf2d8f567607d46/devservices-1.5.5-py3-none-any.whl", hash = "sha256:7b88327c7e55340c89c65530c069c95e3a813d15f7350afa0041fc7256b316fb", size = 127038, upload-time = "2026-10-29T17:21:35.668Z" },
 ]
 
 [[package]]
