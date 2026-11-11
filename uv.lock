@@ -77,7 +77,7 @@ dev = [
     { name = "devservices", specifier = ">=1.5.5" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "sentry-devenv", specifier = ">=1.31.0" },
-    { name = "sentry-protos", specifier = ">=0.2.0" },
+    { name = "sentry-protos", specifier = ">=0.102.1" },
 ]
 
 [[package]]
@@ -301,16 +301,16 @@ wheels = [
 
 [[package]]
 name = "sentry-protos"
-version = "0.97.0"
+version = "0.102.1"
 source = { registry = "https://sfw.security.sentry.io/pypi/simple" }
 dependencies = [
     { name = "grpc-stubs" },
     { name = "grpcio" },
     { name = "protobuf" },
 ]
-sdist = { url = "https://sfw.security.sentry.io/pypi/packages/82/6a/7d69c3c1e45a1d19ce4ac590617eff1c50f2b4cfaf6cabeeb5ae8657c60f/sentry_protos-0.97.0.tar.gz", hash = "sha256:944477d662e31a64bf588022dd2cd44d8d395ec308e3eff9a4ff400e9baf541a", size = 273226, upload-time = "2026-10-28T19:12:05.217Z" }
+sdist = { url = "https://sfw.security.sentry.io/pypi/packages/9e/47/d6134002cc881e1f8ef81144b39c064cbba64aee38ce51e219cb1a977fed/sentry_protos-0.102.1.tar.gz", hash = "sha256:1aa61d5a5808c6001d563f206d2965e0072478510aeb57124e49ac8c43460232", size = 276912, upload-time = "2026-11-04T17:56:55.074Z" }
 wheels = [
-    { url = "https://sfw.security.sentry.io/pypi/packages/f7/9c/70be27342266481cee16bc571170edbdff38fcc19f24b4b1d4c83dea8fd1/sentry_protos-0.97.0-py3-none-any.whl", hash = "sha256:7300411097b9a591c9147efaa0b00d1ad428ec0bc72e92b998056593fae499cf", size = 842928, upload-time = "2026-10-28T19:12:03.58Z" },
+    { url = "https://sfw.security.sentry.io/pypi/packages/82/b4/bbee6c7af73368ead97aed0602de24c439b1062ba7b2f68b7f5785d637f0/sentry_protos-0.102.1-py3-none-any.whl", hash = "sha256:4984b1cd979199527a59f9516a4912803e3df013a488f8286ce1288ab9e8f834", size = 860395, upload-time = "2026-11-04T17:56:53.652Z" },
 ]
 
 [[package]]
