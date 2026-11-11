@@ -9,7 +9,7 @@ dev = [
     "black==26.10.1",
     "devservices>=1.5.5",
     "pre-commit>=4.2.0",
-    "sentry-devenv>=1.22.2",
+    "sentry-devenv>=1.31.0",
     "sentry-protos>=0.2.0",
 ]
 
