@@ -152,6 +152,15 @@ pub async fn publish_handler(
         start: std::time::Instant::now(),
     };
 
+    if state.load_shedder.should_shed() {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(header::RETRY_AFTER, "1")],
+            "Server is overloaded",
+        )
+            .into_response();
+    }
+
     let auth_header = match headers.get("authorization").and_then(|v| v.to_str().ok()) {
         Some(h) => h,
         None => {

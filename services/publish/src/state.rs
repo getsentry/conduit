@@ -1,6 +1,8 @@
 use std::env;
+use std::sync::Arc;
 
 use broker::RedisClient;
+use loadshedding::LoadShedder;
 use tokio::time::Instant;
 
 #[derive(Clone)]
@@ -8,6 +10,7 @@ pub struct AppState {
     pub redis: RedisClient,
     pub start_time: Instant,
     pub jwt_config: JwtConfig,
+    pub load_shedder: Arc<LoadShedder>,
 }
 
 #[derive(Clone)]
