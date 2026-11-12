@@ -18,7 +18,7 @@ use crate::{
 };
 
 const STREAM_TTL_SEC: i64 = 120; // 2 minutes
-const MAX_STREAM_LEN: usize = 1200;
+pub const DEFAULT_MAX_STREAM_LEN: usize = 100;
 const MAX_MESSAGE_SIZE_BYTES: usize = 16 * 1024; // 16KB
 const MAX_PUBLISH_RATE_PER_CHANNEL: usize = 20; // 20 publishes
 const RATE_LIMIT_WINDOW_SEC: i64 = 1; // per 1 sec
@@ -28,6 +28,7 @@ async fn do_publish<R: RedisOperations>(
     org_id: u64,
     channel_id: Uuid,
     body: Bytes,
+    max_stream_len: usize,
 ) -> Result<String, (StatusCode, String)> {
     if body.len() > MAX_MESSAGE_SIZE_BYTES {
         metrics::counter!("handler.publish_size_exceeded").increment(1);
@@ -98,7 +99,7 @@ async fn do_publish<R: RedisOperations>(
     metrics::counter!("track_update.success").increment(1);
 
     let id = redis
-        .publish(&stream_key, body.to_vec(), MAX_STREAM_LEN)
+        .publish(&stream_key, body.to_vec(), max_stream_len)
         .await
         .map_err(|_| {
             metrics::counter!("handler.publish.failed").increment(1);
@@ -196,7 +197,7 @@ pub async fn publish_handler(
         return (StatusCode::UNAUTHORIZED, message).into_response();
     };
 
-    match do_publish(&state.redis, org_id, channel_id, body).await {
+    match do_publish(&state.redis, org_id, channel_id, body, state.max_stream_len).await {
         Ok(stream_id) => stream_id.into_response(),
         Err((status, message)) => {
             let mut response = (status, message).into_response();
@@ -220,6 +221,8 @@ mod tests {
     use prost_types::{Struct, Timestamp};
     use redis::RedisError;
     use sentry_protos::conduit::v1alpha::Phase;
+
+    const TEST_MAX_STREAM_LEN: usize = 42;
 
     #[tokio::test]
     async fn test_publish_success() {
@@ -249,7 +252,7 @@ mod tests {
                     key.as_redis_key() == format!("stream:123:{}", channel_id)
                 }),
                 always(),
-                eq(MAX_STREAM_LEN),
+                eq(TEST_MAX_STREAM_LEN),
             )
             .times(1)
             .returning(|_, _, _| Ok("stream-id-123".to_string()));
@@ -271,7 +274,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "stream-id-123");
@@ -284,7 +287,7 @@ mod tests {
 
         let body = Bytes::from(vec![0u8; MAX_MESSAGE_SIZE_BYTES + 1000]);
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         assert!(result.is_err());
         let (status, _) = result.unwrap_err();
@@ -319,7 +322,7 @@ mod tests {
                     key.as_redis_key() == format!("stream:123:{}", channel_id)
                 }),
                 always(),
-                eq(MAX_STREAM_LEN),
+                eq(TEST_MAX_STREAM_LEN),
             )
             .times(1)
             .returning(|_, _, _| Ok("stream-id-123".to_string()));
@@ -358,7 +361,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "stream-id-123");
@@ -410,7 +413,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         // Track failure should prevent publish
         assert!(result.is_err());
@@ -447,7 +450,7 @@ mod tests {
                     key.as_redis_key() == format!("stream:123:{}", channel_id)
                 }),
                 always(),
-                eq(MAX_STREAM_LEN),
+                eq(TEST_MAX_STREAM_LEN),
             )
             .times(1)
             .returning(|_, _, _| Ok("stream-id-123".to_string()));
@@ -485,7 +488,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "stream-id-123");
@@ -519,7 +522,7 @@ mod tests {
                     key.as_redis_key() == format!("stream:123:{}", channel_id)
                 }),
                 always(),
-                eq(MAX_STREAM_LEN),
+                eq(TEST_MAX_STREAM_LEN),
             )
             .times(1)
             .returning(|_, _, _| Ok("stream-id-123".to_string()));
@@ -563,7 +566,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "stream-id-123");
@@ -581,7 +584,7 @@ mod tests {
             .times(1)
             .returning(|_, _, _| Ok(true));
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();
@@ -635,7 +638,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();
@@ -676,7 +679,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();
@@ -722,7 +725,7 @@ mod tests {
         };
         let body = Bytes::from(request.encode_to_vec());
 
-        let result = do_publish(&mock_redis, 123, channel_id, body).await;
+        let result = do_publish(&mock_redis, 123, channel_id, body, TEST_MAX_STREAM_LEN).await;
 
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();

@@ -15,7 +15,7 @@ use monitoring::logging;
 use publish::{
     handlers::{
         health::{healthz_handler, readyz_handler},
-        publish::publish_handler,
+        publish::{DEFAULT_MAX_STREAM_LEN, publish_handler},
     },
     state::{AppState, JwtConfig},
 };
@@ -93,12 +93,17 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let load_shedder = load_shedder().await?;
     load_shedder.start().await?;
     let load_shedder = Arc::new(load_shedder);
+    let max_stream_len = match std::env::var("PUBLISH_MAX_STREAM_LEN") {
+        Ok(v) => v.parse()?,
+        Err(_) => DEFAULT_MAX_STREAM_LEN,
+    };
 
     let state = AppState {
         redis: broker.clone(),
         start_time: Instant::now(),
         jwt_config,
         load_shedder,
+        max_stream_len,
     };
 
     let redis_for_metrics = state.redis.clone();

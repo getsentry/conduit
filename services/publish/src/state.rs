@@ -11,6 +11,7 @@ pub struct AppState {
     pub start_time: Instant,
     pub jwt_config: JwtConfig,
     pub load_shedder: Arc<LoadShedder>,
+    pub max_stream_len: usize,
 }
 
 #[derive(Clone)]
