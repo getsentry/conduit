@@ -105,8 +105,8 @@ The payload must be a valid JSON-like structure in the form of a `google/protobu
 - Exceeding returns `429 Too Many Requests` with `Retry-After` header
 - High-frequency publishers should batch messages
 
-**Retention:** Streams hold up to approximately 1200 messages. At maximum publish rate, this
-provides ~60 seconds of history to consumers to catch up after brief disconnections.
+**Retention:** Streams hold up to approximately 100 messages. At maximum publish rate, this
+provides ~5 seconds of history to consumers to catch up after brief disconnections.
 
 #### Example: Streaming "hello, world!"
 

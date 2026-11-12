@@ -8,6 +8,7 @@ pub struct AppState {
     pub redis: RedisClient,
     pub start_time: Instant,
     pub jwt_config: JwtConfig,
+    pub max_stream_len: usize,
 }
 
 #[derive(Clone)]
