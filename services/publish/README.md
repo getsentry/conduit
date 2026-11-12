@@ -54,6 +54,8 @@ START/DELTA/END streaming pattern.
 Streams are automatically trimmed to approximately 100 messages. Older messages are removed as new
 ones arrive.
 
+The limit can be overridden with the `PUBLISH_MAX_STREAM_LEN` environment variable.
+
 ## Design Decisions
 
 ### Track-Before-Publish Order
