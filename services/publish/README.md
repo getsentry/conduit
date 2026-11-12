@@ -49,6 +49,23 @@ approximately 1.6MB per stream.
 Publishers handling large data should chunk it into multiple DELTA messages within the
 START/DELTA/END streaming pattern.
 
+### Load Shedding
+
+Before authenticating a publish request, the service checks its memory usage. If the memory
+monitor decides to shed, the request is rejected with `429 Too Many Requests`, `Retry-After: 1`, and
+`Server is overloaded`. Below the soft limit requests are accepted; between the soft and hard limits
+the chance of shedding grows linearly from 0% to 100%; at or above the hard limit every request is
+shed. Each shedding decision increments `loadshedding.shed` with a `monitor` tag.
+
+The monitor measures the container's anonymous memory in bytes, read from its memory cgroup, and is
+configured with:
+
+- `LOADSHEDDING_MEMORY_HARD_LIMIT` (bytes): enables the monitor
+- `LOADSHEDDING_MEMORY_SOFT_LIMIT` (bytes): defaults to, and is capped at, the hard limit
+- `LOADSHEDDING_MEMORY_PERIOD_MS`: poll period, defaults to 1000 ms
+
+The monitor requires the container's own memory cgroup; enabling it without one prevents startup.
+
 ### Stream Length
 
 Streams are automatically trimmed to approximately 100 messages. Older messages are removed as new

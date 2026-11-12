@@ -13,10 +13,10 @@ use gateway::{
         health::{healthz_handler, readyz_handler},
         sse::sse_handler,
     },
-    loadshedding::{LoadShedder, MemoryMonitor, MonitorConfig},
     state::{AppState, JwtConfig},
 };
 use http::Method;
+use loadshedding::{LoadShedder, MemoryMonitor, MonitorConfig};
 use monitoring::logging;
 use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
 use tower_http::cors::{Any, CorsLayer};

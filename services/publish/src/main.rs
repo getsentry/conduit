@@ -1,5 +1,6 @@
 use std::{
     net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
     time::Duration,
 };
 
@@ -9,6 +10,7 @@ use axum::{
 };
 use broker::RedisClient;
 use dotenvy::dotenv;
+use loadshedding::{LoadShedder, MemoryMonitor, MonitorConfig};
 use monitoring::logging;
 use publish::{
     handlers::{
@@ -71,6 +73,15 @@ fn main() -> anyhow::Result<()> {
     runtime.block_on(async_main())
 }
 
+/// Registers the load shedding monitors enabled via `LOADSHEDDING_*` env vars.
+async fn load_shedder() -> anyhow::Result<LoadShedder> {
+    let mut shedder = LoadShedder::new();
+    if let Some(config) = MonitorConfig::from_env("MEMORY") {
+        shedder.add(MemoryMonitor::new().await?, config);
+    }
+    Ok(shedder)
+}
+
 async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let port = std::env::var("PUBLISH_PORT")?;
     let redis_url = std::env::var("REDIS_URL")?;
@@ -79,6 +90,9 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
 
     let jwt_config = JwtConfig::from_env()?;
 
+    let load_shedder = load_shedder().await?;
+    load_shedder.start().await?;
+    let load_shedder = Arc::new(load_shedder);
     let max_stream_len = match std::env::var("PUBLISH_MAX_STREAM_LEN") {
         Ok(v) => v.parse()?,
         Err(_) => DEFAULT_MAX_STREAM_LEN,
@@ -88,6 +102,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
         redis: broker.clone(),
         start_time: Instant::now(),
         jwt_config,
+        load_shedder,
         max_stream_len,
     };
 

@@ -2,9 +2,8 @@ use std::env;
 use std::sync::Arc;
 
 use broker::RedisClient;
+use loadshedding::LoadShedder;
 use tokio::time::Instant;
-
-use crate::loadshedding::LoadShedder;
 
 #[derive(Clone)]
 pub struct AppState {

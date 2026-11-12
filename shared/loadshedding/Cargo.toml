@@ -1,0 +1,17 @@
+[package]
+name = "loadshedding"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+metrics = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+uuid = { workspace = true }

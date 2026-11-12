@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 broker = { path = "../../shared/broker" }
+loadshedding = { path = "../../shared/loadshedding" }
 monitoring = { path = "../../shared/monitoring" }
 sentry_protos = { workspace = true }
 anyhow = { workspace = true }
