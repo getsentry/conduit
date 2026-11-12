@@ -3,7 +3,9 @@ members = [
   "services/cleanup",
   "services/gateway",
   "services/publish",
-  "shared/broker", "shared/monitoring",
+  "shared/broker",
+  "shared/loadshedding",
+  "shared/monitoring",
 ]
 resolver = "2"
 

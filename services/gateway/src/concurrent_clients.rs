@@ -3,8 +3,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use async_trait::async_trait;
-
-use crate::loadshedding::MetricMonitor;
+use loadshedding::MetricMonitor;
 
 static CONCURRENT_CLIENTS: AtomicU64 = AtomicU64::new(0);
 

@@ -1072,6 +1072,7 @@ dependencies = [
  "futures-util",
  "http 1.5.0",
  "jsonwebtoken",
+ "loadshedding",
  "metrics",
  "monitoring",
  "prost",
@@ -1590,6 +1591,20 @@ name = "litemap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
+
+[[package]]
+name = "loadshedding"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures-util",
+ "metrics",
+ "rand 0.10.3",
+ "tokio",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "local-waker"
@@ -2377,6 +2392,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "jsonwebtoken",
+ "loadshedding",
  "metrics",
  "mockall",
  "monitoring",
