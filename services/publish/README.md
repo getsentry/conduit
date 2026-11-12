@@ -36,22 +36,22 @@ isn't going to be able to handle the streams.
 
 **Relationship to stream size:**
 
-At 20/sec with 1200 message streams, consumers have ~60 seconds to recover from disconnections.
+At 20/sec with 100 message streams, consumers have ~5 seconds to recover from disconnections.
 
 ### Message Size
 
 Publish requests are limited to 16KB.
 Requests exceeding this limit are rejected with `413 Payload Too Large`.
 
-Combined with the stream length limit of 1200 messages, this bounds maximum stream size to
-approximately 19.2MB per stream.
+Combined with the stream length limit of 100 messages, this bounds maximum stream size to
+approximately 1.6MB per stream.
 
 Publishers handling large data should chunk it into multiple DELTA messages within the
 START/DELTA/END streaming pattern.
 
 ### Stream Length
 
-Streams are automatically trimmed to approximately 1200 messages. Older messages are removed as new
+Streams are automatically trimmed to approximately 100 messages. Older messages are removed as new
 ones arrive.
 
 ## Design Decisions

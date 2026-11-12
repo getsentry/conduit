@@ -18,7 +18,7 @@ use crate::{
 };
 
 const STREAM_TTL_SEC: i64 = 120; // 2 minutes
-const MAX_STREAM_LEN: usize = 1200;
+const MAX_STREAM_LEN: usize = 100;
 const MAX_MESSAGE_SIZE_BYTES: usize = 16 * 1024; // 16KB
 const MAX_PUBLISH_RATE_PER_CHANNEL: usize = 20; // 20 publishes
 const RATE_LIMIT_WINDOW_SEC: i64 = 1; // per 1 sec
