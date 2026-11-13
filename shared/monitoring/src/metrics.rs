@@ -2,7 +2,10 @@ use metrics::Label;
 use metrics_exporter_dogstatsd::DogStatsDBuilder;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{Layer, PrefixLayer};
-use std::{collections::BTreeMap, net::SocketAddr};
+use std::{
+    collections::BTreeMap,
+    net::{SocketAddr, ToSocketAddrs},
+};
 
 const PROMETHEUS_ENABLED_ENV: &str = "PROMETHEUS_METRICS_ENABLED";
 const PROMETHEUS_PORT_ENV: &str = "PROMETHEUS_METRICS_PORT";
@@ -20,22 +23,29 @@ pub struct MetricsConfig {
     default_tags: BTreeMap<String, String>,
 }
 
+fn resolve_statsd_addr(address: Option<&str>, prometheus_enabled: bool) -> Option<SocketAddr> {
+    if prometheus_enabled {
+        return None;
+    }
+
+    let socket_addrs = address?
+        .to_socket_addrs()
+        .expect("Could not resolve into a socket address");
+    let [statsd_addr] = socket_addrs.as_slice() else {
+        unreachable!("Expect statsd_addr to resolve into a single socket address");
+    };
+    Some(*statsd_addr)
+}
+
 impl MetricsConfig {
     pub fn from_env(service_name: &str, default_tags: BTreeMap<String, String>) -> Option<Self> {
-        let statsd_addr = std::env::var("STATSD_ADDR").ok().map(|address| {
-            use std::net::ToSocketAddrs;
-
-            let socket_addrs = address
-                .to_socket_addrs()
-                .expect("Could not resolve into a socket address");
-            let [statsd_addr] = socket_addrs.as_slice() else {
-                unreachable!("Expect statsd_addr to resolve into a single socket address");
-            };
-            *statsd_addr
-        });
         let prometheus_enabled = std::env::var(PROMETHEUS_ENABLED_ENV)
             .map(|value| value == "true" || value == "1")
             .unwrap_or(false);
+        let statsd_addr = resolve_statsd_addr(
+            std::env::var("STATSD_ADDR").ok().as_deref(),
+            prometheus_enabled,
+        );
         let prometheus_port = std::env::var(PROMETHEUS_PORT_ENV)
             .ok()
             .and_then(|value| value.parse().ok())
@@ -126,6 +136,14 @@ mod tests {
         .expect("StatsD should enable metrics");
 
         assert_eq!(config.exporter, ExporterConfig::DogStatsD(address));
+    }
+
+    #[test]
+    fn prometheus_skips_statsd_resolution() {
+        assert_eq!(
+            resolve_statsd_addr(Some("not-a-socket-address"), true),
+            None
+        );
     }
 
     #[test]
