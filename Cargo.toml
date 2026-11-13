@@ -26,7 +26,9 @@ http = "1.5.0"
 redis = { version = "1.8.0", features = ["tokio-comp", "connection-manager", "cluster-async"] }
 jsonwebtoken = { version = "11.1.0", features = ["rust_crypto"] }
 metrics-exporter-dogstatsd = "0.9.8"
+metrics-exporter-prometheus = { version = "0.18.3", default-features = false, features = ["http-listener"] }
 metrics = "0.24.6"
+metrics-util = { version = "0.20.4", features = ["layers"] }
 mockall = "0.15.0"
 native-tls = { version = "0.2.18", features = ["vendored"] }
 prost = "0.14.4"
