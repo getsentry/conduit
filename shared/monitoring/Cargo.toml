@@ -5,12 +5,14 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-metrics-exporter-dogstatsd = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
 metrics = { workspace = true }
+metrics-util = { workspace = true }
 # Unused directly: vendors OpenSSL for `sentry`, as the runtime image has no libssl.
 native-tls = { workspace = true }
 sentry = { workspace = true }
 serde = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 

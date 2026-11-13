@@ -1,9 +1,4 @@
-use std::{
-    env,
-    net::{SocketAddr, ToSocketAddrs},
-    ops::Sub,
-    time::Duration,
-};
+use std::{env, net::SocketAddr, ops::Sub, time::Duration};
 
 use axum::{Router, routing::get};
 use broker::{RedisClient, RedisOperations, StreamKey};
@@ -72,7 +67,7 @@ fn main() -> anyhow::Result<()> {
         },
     );
 
-    let metrics_config = if let Ok(statsd_addr_str) = std::env::var("STATSD_ADDR") {
+    let metrics_config = {
         let mut tags = std::collections::BTreeMap::new();
         tags.insert("service".to_string(), SERVICE_NAME.to_string());
         tags.insert(
@@ -80,25 +75,11 @@ fn main() -> anyhow::Result<()> {
             std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
         );
 
-        let socket_addrs = statsd_addr_str
-            .to_socket_addrs()
-            .expect("Could not resolve into a socket address");
-        let [statsd_addr] = socket_addrs.as_slice() else {
-            unreachable!("Expect statsd_addr to resolve into a single socket address");
-        };
-
-        Some(monitoring::metrics::MetricsConfig::new(
-            SERVICE_NAME,
-            *statsd_addr,
-            tags,
-        ))
-    } else {
-        None
+        monitoring::metrics::MetricsConfig::from_env(SERVICE_NAME, tags)
     };
 
-    monitoring::init(logging_config, metrics_config);
-
     let runtime = Runtime::new()?;
+    monitoring::init(logging_config, metrics_config, &runtime);
     runtime.block_on(async_main())
 }
 
