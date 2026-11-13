@@ -1,40 +1,15 @@
-use metrics::Label;
-use metrics_exporter_dogstatsd::DogStatsDBuilder;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{Layer, PrefixLayer};
-use std::{
-    collections::BTreeMap,
-    net::{SocketAddr, ToSocketAddrs},
-};
+use std::{collections::BTreeMap, net::SocketAddr};
 
 const PROMETHEUS_ENABLED_ENV: &str = "PROMETHEUS_METRICS_ENABLED";
 const PROMETHEUS_PORT_ENV: &str = "PROMETHEUS_METRICS_PORT";
 const DEFAULT_PROMETHEUS_PORT: u16 = 9090;
 
-#[derive(Debug, PartialEq)]
-enum ExporterConfig {
-    DogStatsD(SocketAddr),
-    Prometheus(SocketAddr),
-}
-
 pub struct MetricsConfig {
     service_name: String,
-    exporter: ExporterConfig,
+    listen_addr: SocketAddr,
     default_tags: BTreeMap<String, String>,
-}
-
-fn resolve_statsd_addr(address: Option<&str>, prometheus_enabled: bool) -> Option<SocketAddr> {
-    if prometheus_enabled {
-        return None;
-    }
-
-    let socket_addrs = address?
-        .to_socket_addrs()
-        .expect("Could not resolve into a socket address");
-    let [statsd_addr] = socket_addrs.as_slice() else {
-        unreachable!("Expect statsd_addr to resolve into a single socket address");
-    };
-    Some(*statsd_addr)
 }
 
 impl MetricsConfig {
@@ -42,10 +17,6 @@ impl MetricsConfig {
         let prometheus_enabled = std::env::var(PROMETHEUS_ENABLED_ENV)
             .map(|value| value == "true" || value == "1")
             .unwrap_or(false);
-        let statsd_addr = resolve_statsd_addr(
-            std::env::var("STATSD_ADDR").ok().as_deref(),
-            prometheus_enabled,
-        );
         let prometheus_port = std::env::var(PROMETHEUS_PORT_ENV)
             .ok()
             .and_then(|value| value.parse().ok())
@@ -54,7 +25,6 @@ impl MetricsConfig {
         Self::from_parts(
             service_name,
             default_tags,
-            statsd_addr,
             prometheus_enabled,
             prometheus_port,
         )
@@ -63,60 +33,35 @@ impl MetricsConfig {
     fn from_parts(
         service_name: &str,
         default_tags: BTreeMap<String, String>,
-        statsd_addr: Option<SocketAddr>,
         prometheus_enabled: bool,
         prometheus_port: u16,
     ) -> Option<Self> {
-        let exporter = if prometheus_enabled {
-            ExporterConfig::Prometheus(SocketAddr::from(([0, 0, 0, 0], prometheus_port)))
-        } else {
-            ExporterConfig::DogStatsD(statsd_addr?)
-        };
+        if !prometheus_enabled {
+            return None;
+        }
 
         Some(Self {
             service_name: service_name.to_string(),
-            exporter,
+            listen_addr: SocketAddr::from(([0, 0, 0, 0], prometheus_port)),
             default_tags,
         })
     }
 }
 
 pub fn init(metrics_config: MetricsConfig) {
-    let service_name = metrics_config.service_name;
-
-    match metrics_config.exporter {
-        ExporterConfig::DogStatsD(address) => {
-            let labels: Vec<Label> = metrics_config
-                .default_tags
-                .into_iter()
-                .map(|(key, value)| Label::new(key, value))
-                .collect();
-
-            let recorder = DogStatsDBuilder::default()
-                .with_remote_address(address.to_string())
-                .expect("Failed to parse remote address")
-                .set_global_prefix(format!("conduit.{}", service_name))
-                .with_global_labels(labels)
-                .build()
-                .expect("Could not create DogStatsDRecorder");
-
-            metrics::set_global_recorder(recorder).expect("Could not set global metrics recorder")
-        }
-        ExporterConfig::Prometheus(address) => {
-            let mut builder = PrometheusBuilder::new().with_http_listener(address);
-            for (key, value) in metrics_config.default_tags {
-                builder = builder.add_global_label(key, value);
-            }
-
-            let (recorder, exporter) = builder
-                .build()
-                .expect("Could not create Prometheus recorder/exporter");
-            let recorder = PrefixLayer::new(format!("conduit.{}", service_name)).layer(recorder);
-
-            metrics::set_global_recorder(recorder).expect("Could not set global metrics recorder");
-            tokio::spawn(exporter);
-        }
+    let mut builder = PrometheusBuilder::new().with_http_listener(metrics_config.listen_addr);
+    for (key, value) in metrics_config.default_tags {
+        builder = builder.add_global_label(key, value);
     }
+
+    let (recorder, exporter) = builder
+        .build()
+        .expect("Could not create Prometheus recorder/exporter");
+    let recorder =
+        PrefixLayer::new(format!("conduit.{}", metrics_config.service_name)).layer(recorder);
+
+    metrics::set_global_recorder(recorder).expect("Could not set global metrics recorder");
+    tokio::spawn(exporter);
 }
 
 #[cfg(test)]
@@ -124,55 +69,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn statsd_is_the_default_exporter() {
-        let address = SocketAddr::from(([127, 0, 0, 1], 8125));
-        let config = MetricsConfig::from_parts(
-            "gateway",
-            BTreeMap::new(),
-            Some(address),
-            false,
-            DEFAULT_PROMETHEUS_PORT,
-        )
-        .expect("StatsD should enable metrics");
-
-        assert_eq!(config.exporter, ExporterConfig::DogStatsD(address));
-    }
-
-    #[test]
-    fn prometheus_skips_statsd_resolution() {
-        assert_eq!(
-            resolve_statsd_addr(Some("not-a-socket-address"), true),
-            None
-        );
-    }
-
-    #[test]
-    fn metrics_are_disabled_without_an_exporter() {
-        let config = MetricsConfig::from_parts(
-            "gateway",
-            BTreeMap::new(),
-            None,
-            false,
-            DEFAULT_PROMETHEUS_PORT,
-        );
+    fn metrics_are_disabled_when_prometheus_is_not_enabled() {
+        let config =
+            MetricsConfig::from_parts("gateway", BTreeMap::new(), false, DEFAULT_PROMETHEUS_PORT);
 
         assert!(config.is_none());
     }
 
     #[test]
-    fn prometheus_does_not_require_statsd() {
-        let config = MetricsConfig::from_parts(
-            "gateway",
-            BTreeMap::new(),
-            None,
-            true,
-            DEFAULT_PROMETHEUS_PORT,
-        )
-        .expect("Prometheus should enable metrics without StatsD");
+    fn prometheus_uses_the_configured_listener() {
+        let config =
+            MetricsConfig::from_parts("gateway", BTreeMap::new(), true, DEFAULT_PROMETHEUS_PORT)
+                .expect("Prometheus should enable metrics");
 
         assert_eq!(
-            config.exporter,
-            ExporterConfig::Prometheus(SocketAddr::from(([0, 0, 0, 0], DEFAULT_PROMETHEUS_PORT,)))
+            config.listen_addr,
+            SocketAddr::from(([0, 0, 0, 0], DEFAULT_PROMETHEUS_PORT))
         );
     }
 
@@ -199,9 +111,8 @@ mod tests {
             .expect("Should reserve a local port")
             .local_addr()
             .expect("Should read the local address");
-        let config =
-            MetricsConfig::from_parts("gateway", BTreeMap::new(), None, true, address.port())
-                .expect("Prometheus should enable metrics");
+        let config = MetricsConfig::from_parts("gateway", BTreeMap::new(), true, address.port())
+            .expect("Prometheus should enable metrics");
         init(config);
 
         metrics::gauge!("connections.active").set(42.0);

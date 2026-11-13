@@ -5,7 +5,6 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-metrics-exporter-dogstatsd = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 metrics = { workspace = true }
 metrics-util = { workspace = true }

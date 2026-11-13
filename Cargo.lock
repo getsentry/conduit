@@ -1714,21 +1714,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "metrics-exporter-dogstatsd"
-version = "0.9.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4f39e912d07239992146dc617951ef78a909daec25f0b31c629767cf59f34bb"
-dependencies = [
- "bytes",
- "itoa",
- "metrics",
- "metrics-util",
- "ryu",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "metrics-exporter-prometheus"
 version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1828,7 +1813,6 @@ name = "monitoring"
 version = "0.1.0"
 dependencies = [
  "metrics",
- "metrics-exporter-dogstatsd",
  "metrics-exporter-prometheus",
  "metrics-util",
  "native-tls",
