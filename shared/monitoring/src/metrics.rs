@@ -2,7 +2,6 @@ use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{Layer, PrefixLayer};
 use std::{collections::BTreeMap, net::SocketAddr};
 
-const PROMETHEUS_PORT_ENV: &str = "PROMETHEUS_METRICS_PORT";
 const DEFAULT_PROMETHEUS_PORT: u16 = 9090;
 
 pub struct MetricsConfig {
@@ -11,9 +10,13 @@ pub struct MetricsConfig {
     default_tags: BTreeMap<String, String>,
 }
 
+fn prometheus_port_env(service_name: &str) -> String {
+    format!("{}_PROMETHEUS_METRICS_PORT", service_name.to_uppercase())
+}
+
 impl MetricsConfig {
     pub fn from_env(service_name: &str, default_tags: BTreeMap<String, String>) -> Self {
-        let prometheus_port = std::env::var(PROMETHEUS_PORT_ENV)
+        let prometheus_port = std::env::var(prometheus_port_env(service_name))
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(DEFAULT_PROMETHEUS_PORT);
@@ -61,6 +64,22 @@ mod tests {
         assert_eq!(
             config.listen_addr,
             SocketAddr::from(([0, 0, 0, 0], DEFAULT_PROMETHEUS_PORT))
+        );
+    }
+
+    #[test]
+    fn prometheus_port_env_is_service_specific() {
+        assert_eq!(
+            prometheus_port_env("gateway"),
+            "GATEWAY_PROMETHEUS_METRICS_PORT"
+        );
+        assert_eq!(
+            prometheus_port_env("publish"),
+            "PUBLISH_PROMETHEUS_METRICS_PORT"
+        );
+        assert_eq!(
+            prometheus_port_env("cleanup"),
+            "CLEANUP_PROMETHEUS_METRICS_PORT"
         );
     }
 
