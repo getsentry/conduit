@@ -2,7 +2,6 @@ use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{Layer, PrefixLayer};
 use std::{collections::BTreeMap, net::SocketAddr};
 
-const PROMETHEUS_ENABLED_ENV: &str = "PROMETHEUS_METRICS_ENABLED";
 const PROMETHEUS_PORT_ENV: &str = "PROMETHEUS_METRICS_PORT";
 const DEFAULT_PROMETHEUS_PORT: u16 = 9090;
 
@@ -13,38 +12,25 @@ pub struct MetricsConfig {
 }
 
 impl MetricsConfig {
-    pub fn from_env(service_name: &str, default_tags: BTreeMap<String, String>) -> Option<Self> {
-        let prometheus_enabled = std::env::var(PROMETHEUS_ENABLED_ENV)
-            .map(|value| value == "true" || value == "1")
-            .unwrap_or(false);
+    pub fn from_env(service_name: &str, default_tags: BTreeMap<String, String>) -> Self {
         let prometheus_port = std::env::var(PROMETHEUS_PORT_ENV)
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(DEFAULT_PROMETHEUS_PORT);
 
-        Self::from_parts(
-            service_name,
-            default_tags,
-            prometheus_enabled,
-            prometheus_port,
-        )
+        Self::from_parts(service_name, default_tags, prometheus_port)
     }
 
     fn from_parts(
         service_name: &str,
         default_tags: BTreeMap<String, String>,
-        prometheus_enabled: bool,
         prometheus_port: u16,
-    ) -> Option<Self> {
-        if !prometheus_enabled {
-            return None;
-        }
-
-        Some(Self {
+    ) -> Self {
+        Self {
             service_name: service_name.to_string(),
             listen_addr: SocketAddr::from(([0, 0, 0, 0], prometheus_port)),
             default_tags,
-        })
+        }
     }
 }
 
@@ -69,18 +55,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn metrics_are_disabled_when_prometheus_is_not_enabled() {
-        let config =
-            MetricsConfig::from_parts("gateway", BTreeMap::new(), false, DEFAULT_PROMETHEUS_PORT);
-
-        assert!(config.is_none());
-    }
-
-    #[test]
     fn prometheus_uses_the_configured_listener() {
-        let config =
-            MetricsConfig::from_parts("gateway", BTreeMap::new(), true, DEFAULT_PROMETHEUS_PORT)
-                .expect("Prometheus should enable metrics");
+        let config = MetricsConfig::from_parts("gateway", BTreeMap::new(), DEFAULT_PROMETHEUS_PORT);
 
         assert_eq!(
             config.listen_addr,
@@ -111,8 +87,7 @@ mod tests {
             .expect("Should reserve a local port")
             .local_addr()
             .expect("Should read the local address");
-        let config = MetricsConfig::from_parts("gateway", BTreeMap::new(), true, address.port())
-            .expect("Prometheus should enable metrics");
+        let config = MetricsConfig::from_parts("gateway", BTreeMap::new(), address.port());
         init(config);
 
         metrics::gauge!("connections.active").set(42.0);
