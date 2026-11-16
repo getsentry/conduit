@@ -6,6 +6,7 @@ members = [
   "shared/broker",
   "shared/loadshedding",
   "shared/monitoring",
+  "shared/shutdown",
 ]
 resolver = "2"
 

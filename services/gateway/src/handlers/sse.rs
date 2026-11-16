@@ -19,8 +19,8 @@ use rand::{RngExt, rng};
 use redis::streams::StreamReadOptions;
 use sentry_protos::conduit::v1alpha::PublishRequest;
 use serde::{Deserialize, Serialize};
+use shutdown::Shutdown;
 use tokio::time::sleep;
-use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::{
@@ -31,6 +31,8 @@ use crate::{
 
 const SSE_DEFAULT_RETRY_MS: Duration = Duration::from_millis(500);
 const SSE_ERROR_RETRY_MS: Duration = Duration::from_secs(3);
+const SSE_SHUTDOWN_RETRY_MIN_MS: u64 = 1000;
+const SSE_SHUTDOWN_RETRY_MAX_MS: u64 = 5000;
 
 const DEFAULT_STREAM_BLOCK_MS: usize = 1000;
 const STREAM_MAX_EVENTS: usize = 20;
@@ -81,7 +83,7 @@ pub fn create_event_stream<R: RedisOperations>(
     org_id: u64,
     channel_id: Uuid,
     last_event_id: Option<String>,
-    shutdown: CancellationToken,
+    shutdown: Shutdown,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
     struct ConnectionGuard;
     impl Drop for ConnectionGuard {
@@ -112,7 +114,13 @@ pub fn create_event_stream<R: RedisOperations>(
         );
 
         'outer: loop {
-            if shutdown.is_cancelled() {
+            if shutdown.should_exit() {
+                let retry_ms = rng().random_range(SSE_SHUTDOWN_RETRY_MIN_MS..=SSE_SHUTDOWN_RETRY_MAX_MS);
+                yield Ok(Event::default()
+                    .event("shutdown")
+                    .retry(Duration::from_millis(retry_ms))
+                    .data(json!({"reason": "server_shutdown"}).to_string())
+                );
                 metrics::counter!("connections.closed.shutdown").increment(1);
                 break 'outer;
             }
@@ -140,7 +148,7 @@ pub fn create_event_stream<R: RedisOperations>(
                     }
                     tokio::select! {
                         _ = sleep(Duration::from_millis(ERROR_BACKOFF_BASE_MS * consecutive_errors)) => {}
-                        _ = shutdown.cancelled() => {}
+                        _ = shutdown.wait() => {}
                     }
                     continue;
                 }
@@ -150,7 +158,7 @@ pub fn create_event_stream<R: RedisOperations>(
                 let jitter_ms = rng().random_range(JITTER_MS_MIN..=JITTER_MS_MAX);
                 tokio::select! {
                     _ = sleep(Duration::from_millis(jitter_ms)) => {}
-                    _ = shutdown.cancelled() => {}
+                    _ = shutdown.wait() => {}
                 }
                 continue;
             }
@@ -509,7 +517,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
-                CancellationToken::new(),
+                Shutdown::new(),
             ));
 
             let mut events = vec![];
@@ -538,7 +546,7 @@ mod tests {
                 123,
                 Uuid::new_v4(),
                 None,
-                CancellationToken::new(),
+                Shutdown::new(),
             ));
 
             let mut events = vec![];
@@ -582,7 +590,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
-                CancellationToken::new(),
+                Shutdown::new(),
             ));
 
             let mut events = vec![];
@@ -646,7 +654,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
-                CancellationToken::new(),
+                Shutdown::new(),
             ));
 
             let mut events = vec![];
@@ -688,7 +696,7 @@ mod tests {
                 123,
                 channel_id,
                 Some("5-0".to_string()),
-                CancellationToken::new(),
+                Shutdown::new(),
             ));
 
             let mut events = vec![];
@@ -702,8 +710,8 @@ mod tests {
 
         #[tokio::test]
         async fn test_create_event_stream_closes_when_already_shutting_down() {
-            let shutdown = CancellationToken::new();
-            shutdown.cancel();
+            let shutdown = Shutdown::new();
+            shutdown.trigger();
 
             let mock_redis = MockRedisOperations::new();
 
@@ -720,18 +728,18 @@ mod tests {
                 events.push(result.expect("Event should be Ok"));
             }
 
-            // retry only, no Redis polls
-            assert_eq!(events.len(), 1);
+            // retry and shutdown, no Redis polls
+            assert_eq!(events.len(), 2);
         }
 
         #[tokio::test]
         async fn test_create_event_stream_closes_when_shutdown_during_idle_poll() {
-            let shutdown = CancellationToken::new();
-            let cancel_handle = shutdown.clone();
+            let shutdown = Shutdown::new();
+            let trigger_handle = shutdown.clone();
 
             let mut mock_redis = MockRedisOperations::new();
             mock_redis.expect_poll().returning(move |_, _, _| {
-                cancel_handle.cancel();
+                trigger_handle.trigger();
                 Ok(StreamEvents { events: vec![] })
             });
 
@@ -748,8 +756,8 @@ mod tests {
                 events.push(result.expect("Event should be Ok"));
             }
 
-            // retry only; the jitter sleep is interrupted and the loop exits
-            assert_eq!(events.len(), 1);
+            // retry, then shutdown once the jitter sleep is interrupted
+            assert_eq!(events.len(), 2);
         }
     }
 }

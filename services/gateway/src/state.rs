@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use broker::RedisClient;
 use loadshedding::LoadShedder;
+use shutdown::Shutdown;
 use tokio::time::Instant;
-use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -12,7 +12,7 @@ pub struct AppState {
     pub start_time: Instant,
     pub jwt_config: JwtConfig,
     pub load_shedder: Arc<LoadShedder>,
-    pub shutdown: CancellationToken,
+    pub shutdown: Shutdown,
 }
 
 #[derive(Clone)]
