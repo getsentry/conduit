@@ -15,6 +15,7 @@ async-trait = { workspace = true }
 axum = { workspace = true }
 chrono = { workspace = true }
 dotenvy = { workspace = true }
+elegant-departure = { workspace = true }
 futures-util = { workspace = true }
 http = { workspace = true }
 jsonwebtoken = { workspace = true }
@@ -26,7 +27,6 @@ redis = { workspace = true }
 rsa = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-shutdown = { path = "../../shared/shutdown" }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }

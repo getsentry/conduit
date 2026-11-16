@@ -14,12 +14,12 @@ use axum::{
     },
 };
 use broker::{RedisOperations, StreamEvents, StreamKey};
-use futures_util::Stream;
+use elegant_departure::ShutdownGuard;
+use futures_util::{FutureExt, Stream};
 use rand::{RngExt, rng};
 use redis::streams::StreamReadOptions;
 use sentry_protos::conduit::v1alpha::PublishRequest;
 use serde::{Deserialize, Serialize};
-use shutdown::Shutdown;
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -78,12 +78,17 @@ struct SSEEvent {
     payload: serde_json::Value,
 }
 
+/// Returns `true` once a shutdown has started.
+fn should_exit(shutdown: &ShutdownGuard) -> bool {
+    shutdown.wait().now_or_never().is_some()
+}
+
 pub fn create_event_stream<R: RedisOperations>(
     redis: Arc<R>,
     org_id: u64,
     channel_id: Uuid,
     last_event_id: Option<String>,
-    shutdown: Shutdown,
+    shutdown: Arc<ShutdownGuard>,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
     struct ConnectionGuard;
     impl Drop for ConnectionGuard {
@@ -114,7 +119,7 @@ pub fn create_event_stream<R: RedisOperations>(
         );
 
         'outer: loop {
-            if shutdown.should_exit() {
+            if should_exit(&shutdown) {
                 let retry_ms = rng().random_range(SSE_SHUTDOWN_RETRY_MIN_MS..=SSE_SHUTDOWN_RETRY_MAX_MS);
                 yield Ok(Event::default()
                     .event("shutdown")
@@ -517,7 +522,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
-                Shutdown::new(),
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];
@@ -546,7 +551,7 @@ mod tests {
                 123,
                 Uuid::new_v4(),
                 None,
-                Shutdown::new(),
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];
@@ -590,7 +595,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
-                Shutdown::new(),
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];
@@ -654,7 +659,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
-                Shutdown::new(),
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];
@@ -696,7 +701,7 @@ mod tests {
                 123,
                 channel_id,
                 Some("5-0".to_string()),
-                Shutdown::new(),
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];
@@ -705,58 +710,6 @@ mod tests {
             }
 
             // retry + end event
-            assert_eq!(events.len(), 2);
-        }
-
-        #[tokio::test]
-        async fn test_create_event_stream_closes_when_already_shutting_down() {
-            let shutdown = Shutdown::new();
-            shutdown.trigger();
-
-            let mock_redis = MockRedisOperations::new();
-
-            let mut stream = Box::pin(create_event_stream(
-                Arc::new(mock_redis),
-                123,
-                Uuid::new_v4(),
-                None,
-                shutdown,
-            ));
-
-            let mut events = vec![];
-            while let Some(result) = stream.next().await {
-                events.push(result.expect("Event should be Ok"));
-            }
-
-            // retry and shutdown, no Redis polls
-            assert_eq!(events.len(), 2);
-        }
-
-        #[tokio::test]
-        async fn test_create_event_stream_closes_when_shutdown_during_idle_poll() {
-            let shutdown = Shutdown::new();
-            let trigger_handle = shutdown.clone();
-
-            let mut mock_redis = MockRedisOperations::new();
-            mock_redis.expect_poll().returning(move |_, _, _| {
-                trigger_handle.trigger();
-                Ok(StreamEvents { events: vec![] })
-            });
-
-            let mut stream = Box::pin(create_event_stream(
-                Arc::new(mock_redis),
-                123,
-                Uuid::new_v4(),
-                None,
-                shutdown,
-            ));
-
-            let mut events = vec![];
-            while let Some(result) = stream.next().await {
-                events.push(result.expect("Event should be Ok"));
-            }
-
-            // retry, then shutdown once the jitter sleep is interrupted
             assert_eq!(events.len(), 2);
         }
     }

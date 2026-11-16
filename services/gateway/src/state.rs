@@ -2,8 +2,8 @@ use std::env;
 use std::sync::Arc;
 
 use broker::RedisClient;
+use elegant_departure::ShutdownGuard;
 use loadshedding::LoadShedder;
-use shutdown::Shutdown;
 use tokio::time::Instant;
 
 #[derive(Clone)]
@@ -12,7 +12,9 @@ pub struct AppState {
     pub start_time: Instant,
     pub jwt_config: JwtConfig,
     pub load_shedder: Arc<LoadShedder>,
-    pub shutdown: Shutdown,
+    /// Shared by every connection. elegant-departure never frees guards, so
+    /// one must not be created per connection.
+    pub shutdown: Arc<ShutdownGuard>,
 }
 
 #[derive(Clone)]

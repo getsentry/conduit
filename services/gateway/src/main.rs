@@ -14,7 +14,6 @@ use gateway::{
 use http::Method;
 use loadshedding::{LoadShedder, MemoryMonitor, MonitorConfig};
 use monitoring::logging;
-use shutdown::{Shutdown, on_signal};
 use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
 use tower_http::cors::{Any, CorsLayer};
 
@@ -80,13 +79,17 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     load_shedder.start().await?;
     let load_shedder = Arc::new(load_shedder);
 
-    let shutdown = Shutdown::new();
+    // The guard lives in the router state, so it is released once the server
+    // has stopped and every stream has closed. If the server exits on its own,
+    // dropping the guard starts a shutdown so the process does not hang.
+    let shutdown = Arc::new(elegant_departure::get_shutdown_guard().shutdown_on_drop());
+    let shutdown_started = shutdown.wait_owned();
     let state = AppState {
         redis: broker,
         start_time: Instant::now(),
         jwt_config,
         load_shedder,
-        shutdown: shutdown.clone(),
+        shutdown,
     };
 
     let redis_for_metrics = state.redis.clone();
@@ -125,16 +128,20 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     println!("Running on http://{}", addr);
 
-    let signal = on_signal()?;
+    // Built before serving so the SIGTERM handler is registered early.
+    // Resolves after a signal, once every shutdown guard has been released.
+    let departure = elegant_departure::tokio::depart().on_termination();
 
     let listener = TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
+    let server = axum::serve(listener, app)
         .with_graceful_shutdown(async move {
-            signal.await;
+            shutdown_started.await;
             eprintln!("Shutting down...");
-            shutdown.trigger();
         })
-        .await?;
+        .into_future();
+
+    let (served, ()) = tokio::join!(server, departure);
+    served?;
 
     Ok(())
 }
