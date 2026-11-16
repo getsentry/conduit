@@ -31,8 +31,8 @@ use crate::{
 
 const SSE_DEFAULT_RETRY_MS: Duration = Duration::from_millis(500);
 const SSE_ERROR_RETRY_MS: Duration = Duration::from_secs(3);
-const SSE_SHUTDOWN_RETRY_MIN_MS: u64 = 1000;
-const SSE_SHUTDOWN_RETRY_MAX_MS: u64 = 5000;
+const SSE_CLIENT_RECONNECT_JITTER_MIN_MS: u64 = 1000;
+const SSE_CLIENT_RECONNECT_JITTER_MAX_MS: u64 = 5000;
 
 const DEFAULT_STREAM_BLOCK_MS: usize = 1000;
 const STREAM_MAX_EVENTS: usize = 20;
@@ -119,7 +119,7 @@ pub fn create_event_stream<R: RedisOperations>(
 
         'outer: loop {
             if should_exit(&shutdown) {
-                let retry_ms = rng().random_range(SSE_SHUTDOWN_RETRY_MIN_MS..=SSE_SHUTDOWN_RETRY_MAX_MS);
+                let retry_ms = rng().random_range(SSE_CLIENT_RECONNECT_JITTER_MIN_MS..=SSE_CLIENT_RECONNECT_JITTER_MAX_MS);
                 yield Ok(Event::default()
                     .event("shutdown")
                     .retry(Duration::from_millis(retry_ms))
