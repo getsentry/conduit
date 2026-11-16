@@ -78,10 +78,6 @@ struct SSEEvent {
     payload: serde_json::Value,
 }
 
-fn should_exit(shutdown: &ShutdownGuard) -> bool {
-    shutdown.wait().now_or_never().is_some()
-}
-
 pub fn create_event_stream<R: RedisOperations>(
     redis: Arc<R>,
     org_id: u64,
@@ -118,7 +114,7 @@ pub fn create_event_stream<R: RedisOperations>(
         );
 
         'outer: loop {
-            if should_exit(&shutdown) {
+            if shutdown.wait().now_or_never().is_some() {
                 let retry_ms = rng().random_range(SSE_CLIENT_RECONNECT_JITTER_MIN_MS..=SSE_CLIENT_RECONNECT_JITTER_MAX_MS);
                 yield Ok(Event::default()
                     .event("shutdown")
