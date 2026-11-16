@@ -79,9 +79,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     load_shedder.start().await?;
     let load_shedder = Arc::new(load_shedder);
 
-    // The guard lives in the router state, so it is released once the server
-    // has stopped and every stream has closed. If the server exits on its own,
-    // dropping the guard starts a shutdown so the process does not hang.
+    // Held by the router, so departure completes once the server has drained.
     let shutdown = Arc::new(elegant_departure::get_shutdown_guard().shutdown_on_drop());
     let shutdown_started = shutdown.wait_owned();
     let state = AppState {
@@ -128,8 +126,6 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     println!("Running on http://{}", addr);
 
-    // Built before serving so the SIGTERM handler is registered early.
-    // Resolves after a signal, once every shutdown guard has been released.
     let departure = elegant_departure::tokio::depart().on_termination();
 
     let listener = TcpListener::bind(addr).await?;

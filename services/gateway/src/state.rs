@@ -12,8 +12,7 @@ pub struct AppState {
     pub start_time: Instant,
     pub jwt_config: JwtConfig,
     pub load_shedder: Arc<LoadShedder>,
-    /// Shared by every connection. elegant-departure never frees guards, so
-    /// one must not be created per connection.
+    /// Shared because elegant-departure never frees guards.
     pub shutdown: Arc<ShutdownGuard>,
 }
 

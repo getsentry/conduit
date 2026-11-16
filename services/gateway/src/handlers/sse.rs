@@ -78,7 +78,6 @@ struct SSEEvent {
     payload: serde_json::Value,
 }
 
-/// Returns `true` once a shutdown has started.
 fn should_exit(shutdown: &ShutdownGuard) -> bool {
     shutdown.wait().now_or_never().is_some()
 }

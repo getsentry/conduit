@@ -1,6 +1,4 @@
-//! elegant-departure keeps shutdown state in a process-wide registry that
-//! cannot be reset, so these tests live in their own test binary and run in
-//! one test function, in order.
+//! Separate binary: elegant-departure's shutdown state is global and cannot be reset.
 
 use std::sync::Arc;
 
@@ -28,8 +26,6 @@ async fn collect_events(redis: MockRedisOperations) -> usize {
 
 #[tokio::test]
 async fn test_streams_close_on_shutdown() {
-    // Shutdown starts while the stream is idle: the jitter sleep is
-    // interrupted and the stream sends retry, then shutdown.
     let mut redis = MockRedisOperations::new();
     redis.expect_poll().times(1).returning(|_, _, _| {
         drop(elegant_departure::shutdown());
@@ -37,8 +33,6 @@ async fn test_streams_close_on_shutdown() {
     });
     assert_eq!(collect_events(redis).await, 2);
 
-    // Shutdown already started: a new stream sends retry, then shutdown,
-    // without polling Redis.
     let mut redis = MockRedisOperations::new();
     redis.expect_poll().never();
     assert_eq!(collect_events(redis).await, 2);
