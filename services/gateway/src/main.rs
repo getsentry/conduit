@@ -14,7 +14,13 @@ use gateway::{
 use http::Method;
 use loadshedding::{LoadShedder, MemoryMonitor, MonitorConfig};
 use monitoring::logging;
-use tokio::{net::TcpListener, runtime::Runtime, time::Instant};
+use tokio::{
+    net::TcpListener,
+    runtime::Runtime,
+    signal::unix::{SignalKind, signal},
+    time::Instant,
+};
+use tokio_util::sync::CancellationToken;
 use tower_http::cors::{Any, CorsLayer};
 
 const SERVICE_NAME: &str = "gateway";
@@ -79,11 +85,13 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     load_shedder.start().await?;
     let load_shedder = Arc::new(load_shedder);
 
+    let shutdown = CancellationToken::new();
     let state = AppState {
         redis: broker,
         start_time: Instant::now(),
         jwt_config,
         load_shedder,
+        shutdown: shutdown.clone(),
     };
 
     let redis_for_metrics = state.redis.clone();
@@ -122,11 +130,18 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     println!("Running on http://{}", addr);
 
+    let mut sigterm = signal(SignalKind::terminate())?;
+    let mut sigint = signal(SignalKind::interrupt())?;
+
     let listener = TcpListener::bind(addr).await?;
     axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
+        .with_graceful_shutdown(async move {
+            tokio::select! {
+                _ = sigterm.recv() => {}
+                _ = sigint.recv() => {}
+            }
             eprintln!("Shutting down...");
+            shutdown.cancel();
         })
         .await?;
 

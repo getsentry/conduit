@@ -20,6 +20,7 @@ use redis::streams::StreamReadOptions;
 use sentry_protos::conduit::v1alpha::PublishRequest;
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::{
@@ -80,6 +81,7 @@ pub fn create_event_stream<R: RedisOperations>(
     org_id: u64,
     channel_id: Uuid,
     last_event_id: Option<String>,
+    shutdown: CancellationToken,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
     struct ConnectionGuard;
     impl Drop for ConnectionGuard {
@@ -110,6 +112,10 @@ pub fn create_event_stream<R: RedisOperations>(
         );
 
         'outer: loop {
+            if shutdown.is_cancelled() {
+                metrics::counter!("connections.closed.shutdown").increment(1);
+                break 'outer;
+            }
             let poll_start = std::time::Instant::now();
             let stream_events: StreamEvents = match redis.poll(&stream_key, &last_id, &stream_read_opts).await {
                 Ok(e) => {
@@ -132,14 +138,20 @@ pub fn create_event_stream<R: RedisOperations>(
                         metrics::counter!("connections.closed.error_limit").increment(1);
                         break 'outer;
                     }
-                    sleep(Duration::from_millis(ERROR_BACKOFF_BASE_MS * consecutive_errors)).await;
+                    tokio::select! {
+                        _ = sleep(Duration::from_millis(ERROR_BACKOFF_BASE_MS * consecutive_errors)) => {}
+                        _ = shutdown.cancelled() => {}
+                    }
                     continue;
                 }
             };
             if stream_events.events.is_empty() {
                 metrics::counter!("stream.redis_poll.empty").increment(1);
                 let jitter_ms = rng().random_range(JITTER_MS_MIN..=JITTER_MS_MAX);
-                sleep(Duration::from_millis(jitter_ms)).await;
+                tokio::select! {
+                    _ = sleep(Duration::from_millis(jitter_ms)) => {}
+                    _ = shutdown.cancelled() => {}
+                }
                 continue;
             }
             metrics::histogram!("stream.redis_poll.events_per_poll").record(stream_events.events.len() as f64);
@@ -272,6 +284,7 @@ pub async fn sse_handler(
         claims.org_id,
         claims.channel_id,
         last_event_id,
+        state.shutdown,
     );
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::new()))
@@ -496,6 +509,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
+                CancellationToken::new(),
             ));
 
             let mut events = vec![];
@@ -524,6 +538,7 @@ mod tests {
                 123,
                 Uuid::new_v4(),
                 None,
+                CancellationToken::new(),
             ));
 
             let mut events = vec![];
@@ -567,6 +582,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
+                CancellationToken::new(),
             ));
 
             let mut events = vec![];
@@ -630,6 +646,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
+                CancellationToken::new(),
             ));
 
             let mut events = vec![];
@@ -671,6 +688,7 @@ mod tests {
                 123,
                 channel_id,
                 Some("5-0".to_string()),
+                CancellationToken::new(),
             ));
 
             let mut events = vec![];
@@ -680,6 +698,58 @@ mod tests {
 
             // retry + end event
             assert_eq!(events.len(), 2);
+        }
+
+        #[tokio::test]
+        async fn test_create_event_stream_closes_when_already_shutting_down() {
+            let shutdown = CancellationToken::new();
+            shutdown.cancel();
+
+            let mock_redis = MockRedisOperations::new();
+
+            let mut stream = Box::pin(create_event_stream(
+                Arc::new(mock_redis),
+                123,
+                Uuid::new_v4(),
+                None,
+                shutdown,
+            ));
+
+            let mut events = vec![];
+            while let Some(result) = stream.next().await {
+                events.push(result.expect("Event should be Ok"));
+            }
+
+            // retry only, no Redis polls
+            assert_eq!(events.len(), 1);
+        }
+
+        #[tokio::test]
+        async fn test_create_event_stream_closes_when_shutdown_during_idle_poll() {
+            let shutdown = CancellationToken::new();
+            let cancel_handle = shutdown.clone();
+
+            let mut mock_redis = MockRedisOperations::new();
+            mock_redis.expect_poll().returning(move |_, _, _| {
+                cancel_handle.cancel();
+                Ok(StreamEvents { events: vec![] })
+            });
+
+            let mut stream = Box::pin(create_event_stream(
+                Arc::new(mock_redis),
+                123,
+                Uuid::new_v4(),
+                None,
+                shutdown,
+            ));
+
+            let mut events = vec![];
+            while let Some(result) = stream.next().await {
+                events.push(result.expect("Event should be Ok"));
+            }
+
+            // retry only; the jitter sleep is interrupted and the loop exits
+            assert_eq!(events.len(), 1);
         }
     }
 }
