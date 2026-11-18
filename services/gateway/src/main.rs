@@ -79,11 +79,15 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     load_shedder.start().await?;
     let load_shedder = Arc::new(load_shedder);
 
+    // Held by the router, so departure completes once the server has drained.
+    let shutdown = Arc::new(elegant_departure::get_shutdown_guard().shutdown_on_drop());
+    let shutdown_started = shutdown.wait_owned();
     let state = AppState {
         redis: broker,
         start_time: Instant::now(),
         jwt_config,
         load_shedder,
+        shutdown,
     };
 
     let redis_for_metrics = state.redis.clone();
@@ -122,13 +126,18 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     println!("Running on http://{}", addr);
 
+    let departure = elegant_departure::tokio::depart().on_termination();
+
     let listener = TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
+    let server = axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            shutdown_started.await;
             eprintln!("Shutting down...");
         })
-        .await?;
+        .into_future();
+
+    let (served, ()) = tokio::join!(server, departure);
+    served?;
 
     Ok(())
 }

@@ -14,7 +14,8 @@ use axum::{
     },
 };
 use broker::{RedisOperations, StreamEvents, StreamKey};
-use futures_util::Stream;
+use elegant_departure::ShutdownGuard;
+use futures_util::{FutureExt, Stream};
 use rand::{RngExt, rng};
 use redis::streams::StreamReadOptions;
 use sentry_protos::conduit::v1alpha::PublishRequest;
@@ -30,6 +31,8 @@ use crate::{
 
 const SSE_DEFAULT_RETRY_MS: Duration = Duration::from_millis(500);
 const SSE_ERROR_RETRY_MS: Duration = Duration::from_secs(3);
+const SSE_CLIENT_RECONNECT_JITTER_MIN_MS: u64 = 1000;
+const SSE_CLIENT_RECONNECT_JITTER_MAX_MS: u64 = 5000;
 
 const DEFAULT_STREAM_BLOCK_MS: usize = 1000;
 const STREAM_MAX_EVENTS: usize = 20;
@@ -80,6 +83,7 @@ pub fn create_event_stream<R: RedisOperations>(
     org_id: u64,
     channel_id: Uuid,
     last_event_id: Option<String>,
+    shutdown: Arc<ShutdownGuard>,
 ) -> impl Stream<Item = Result<Event, axum::Error>> {
     struct ConnectionGuard;
     impl Drop for ConnectionGuard {
@@ -110,6 +114,16 @@ pub fn create_event_stream<R: RedisOperations>(
         );
 
         'outer: loop {
+            if shutdown.wait().now_or_never().is_some() {
+                let retry_ms = rng().random_range(SSE_CLIENT_RECONNECT_JITTER_MIN_MS..=SSE_CLIENT_RECONNECT_JITTER_MAX_MS);
+                yield Ok(Event::default()
+                    .event("shutdown")
+                    .retry(Duration::from_millis(retry_ms))
+                    .data(json!({"reason": "server_shutdown"}).to_string())
+                );
+                metrics::counter!("connections.closed.shutdown").increment(1);
+                break 'outer;
+            }
             let poll_start = std::time::Instant::now();
             let stream_events: StreamEvents = match redis.poll(&stream_key, &last_id, &stream_read_opts).await {
                 Ok(e) => {
@@ -132,14 +146,20 @@ pub fn create_event_stream<R: RedisOperations>(
                         metrics::counter!("connections.closed.error_limit").increment(1);
                         break 'outer;
                     }
-                    sleep(Duration::from_millis(ERROR_BACKOFF_BASE_MS * consecutive_errors)).await;
+                    tokio::select! {
+                        _ = sleep(Duration::from_millis(ERROR_BACKOFF_BASE_MS * consecutive_errors)) => {}
+                        _ = shutdown.wait() => {}
+                    }
                     continue;
                 }
             };
             if stream_events.events.is_empty() {
                 metrics::counter!("stream.redis_poll.empty").increment(1);
                 let jitter_ms = rng().random_range(JITTER_MS_MIN..=JITTER_MS_MAX);
-                sleep(Duration::from_millis(jitter_ms)).await;
+                tokio::select! {
+                    _ = sleep(Duration::from_millis(jitter_ms)) => {}
+                    _ = shutdown.wait() => {}
+                }
                 continue;
             }
             metrics::histogram!("stream.redis_poll.events_per_poll").record(stream_events.events.len() as f64);
@@ -272,6 +292,7 @@ pub async fn sse_handler(
         claims.org_id,
         claims.channel_id,
         last_event_id,
+        state.shutdown,
     );
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::new()))
@@ -496,6 +517,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];
@@ -524,6 +546,7 @@ mod tests {
                 123,
                 Uuid::new_v4(),
                 None,
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];
@@ -567,6 +590,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];
@@ -630,6 +654,7 @@ mod tests {
                 123,
                 channel_id,
                 None,
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];
@@ -671,6 +696,7 @@ mod tests {
                 123,
                 channel_id,
                 Some("5-0".to_string()),
+                Arc::new(elegant_departure::get_shutdown_guard()),
             ));
 
             let mut events = vec![];

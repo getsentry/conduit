@@ -2,6 +2,7 @@ use std::env;
 use std::sync::Arc;
 
 use broker::RedisClient;
+use elegant_departure::ShutdownGuard;
 use loadshedding::LoadShedder;
 use tokio::time::Instant;
 
@@ -11,6 +12,8 @@ pub struct AppState {
     pub start_time: Instant,
     pub jwt_config: JwtConfig,
     pub load_shedder: Arc<LoadShedder>,
+    /// Shared because elegant-departure never frees guards.
+    pub shutdown: Arc<ShutdownGuard>,
 }
 
 #[derive(Clone)]
