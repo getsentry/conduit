@@ -5,7 +5,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use broker::{RedisOperations, StreamKey};
-use chrono::Utc;
 use prost::Message;
 
 use sentry_protos::conduit::v1alpha::{Phase, PublishRequest};
@@ -86,7 +85,7 @@ async fn do_publish<R: RedisOperations>(
 
     // Track stream activity BEFORE publish to prevent orphaned streams.
     redis
-        .track_stream_update(&stream_key, Utc::now().timestamp())
+        .track_stream_update(&stream_key, broker::unix_timestamp())
         .await
         .map_err(|_| {
             // If tracking fails, we avoid creating untracked streams.
