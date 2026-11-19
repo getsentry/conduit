@@ -10,7 +10,7 @@ dev = [
     "devservices>=1.5.5",
     "pre-commit>=4.2.0",
     "sentry-devenv>=1.40.0",
-    "sentry-protos>=0.102.1",
+    "sentry-protos>=0.117.0",
 ]
 
 [tool.uv]
