@@ -71,19 +71,19 @@ pub fn validate_token(
 mod tests {
     use super::*;
     use jsonwebtoken::{EncodingKey, Header, encode};
+    use rand::rngs::SysRng;
     use rsa::pkcs1::{EncodeRsaPrivateKey, LineEnding};
     use rsa::pkcs8::EncodePublicKey;
-    use rsa::rand_core::OsRng;
-    use rsa::{RsaPrivateKey, RsaPublicKey};
+    use rsa::{PrivateKey, PublicKey};
     use std::sync::LazyLock;
 
     static STANDARD_KEYS: LazyLock<(String, String)> = LazyLock::new(generate_test_keypair);
 
     fn generate_test_keypair() -> (String, String) {
-        let mut rng = OsRng;
+        let mut rng = SysRng;
         let bits = 2048;
-        let private_key = RsaPrivateKey::new(&mut rng, bits).expect("failed to generate key");
-        let public_key = RsaPublicKey::from(&private_key);
+        let private_key = PrivateKey::new(&mut rng, bits).expect("failed to generate key");
+        let public_key = PublicKey::from(&private_key);
 
         let private_pem = private_key
             .to_pkcs1_pem(LineEnding::LF)

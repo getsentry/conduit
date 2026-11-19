@@ -13,7 +13,7 @@ resolver = "2"
 edition = "2024"
 
 [workspace.dependencies]
-sentry_protos = "0.100.0"
+sentry_protos = "0.119.0"
 anyhow = "1.0.104"
 async-stream = "0.3.6"
 async-trait = "0.1.92"
@@ -36,7 +36,7 @@ tokio = { version = "1.54.1", features = ["full"] }
 tokio-stream = "0.1.19"
 tokio-util = "0.7.20"
 rand = "0.10"
-rsa = "0.9.10"
+rsa = "0.10.0"
 thiserror = "2.0.21"
 tower = "0.5.3"
 tower-http = { version = "0.7.1", features = ["cors"] }
