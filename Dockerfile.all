@@ -1,7 +1,7 @@
-# Unified conduit image: contains all service binaries. The service to run
-# is selected by a positional argument, e.g.:
+# Unified conduit image: contains all service binaries. The image has no shell
+# or entrypoint, so the service to run is set by the command, e.g.:
 #
-#     docker run ghcr.io/getsentry/conduit:<sha> gateway
+#     docker run --entrypoint /usr/local/bin/gateway ghcr.io/getsentry/conduit:<sha>
 #
 # Build image
 FROM rust:1 AS build
@@ -18,11 +18,5 @@ RUN cargo build --release
 FROM us-docker.pkg.dev/sentryio/dhi-mirror/static:20250419-glibc-debian13
 
 COPY --from=build /app/target/release/gateway /app/target/release/publish /app/target/release/cleanup /usr/local/bin/
-# The static base image has no shell; copy one from the build stage for the
-# entrypoint script.
-COPY --from=build /bin/sh /bin/sh
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
 EXPOSE 8080
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
