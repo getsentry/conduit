@@ -41,7 +41,6 @@ pub fn validate_token(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use jsonwebtoken::{EncodingKey, Header, encode};
 
     fn create_test_token(claims: &Claims, secret: &[u8]) -> String {
@@ -59,7 +58,7 @@ mod tests {
             sub: "client-123".to_string(),
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
 
         let token = create_test_token(&claims, secret);
@@ -80,7 +79,7 @@ mod tests {
             sub: "client-123".to_string(),
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() - 3600) as usize,
+            exp: (broker::unix_timestamp() - 3600) as usize,
         };
 
         let token = create_test_token(&claims, secret);
@@ -99,7 +98,7 @@ mod tests {
             sub: "client-123".to_string(),
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
 
         let token = create_test_token(&claims, secret);
@@ -121,7 +120,7 @@ mod tests {
             sub: "client-123".to_string(),
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
 
         let token = create_test_token(&claims, secret);
@@ -144,7 +143,7 @@ mod tests {
             sub: "client-123".to_string(),
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
 
         let token = create_test_token(&claims, secret);

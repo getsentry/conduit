@@ -2,7 +2,6 @@ use std::{env, net::SocketAddr, ops::Sub, time::Duration};
 
 use axum::{Router, routing::get};
 use broker::{RedisClient, RedisOperations, StreamKey};
-use chrono::Utc;
 use cleanup::{
     handlers::health::{healthz_handler, readyz_handler},
     state::AppState,
@@ -145,7 +144,7 @@ async fn async_main() -> anyhow::Result<(), anyhow::Error> {
             select! {
                 _ = interval.tick() => {
                     let start = Instant::now();
-                    let cutoff_timestamp = Utc::now().timestamp().sub(stream_idle_sec);
+                    let cutoff_timestamp = broker::unix_timestamp().sub(stream_idle_sec);
 
                     let (total, deleted, untracked) =
                         match cleanup_old_stream(&broker, cutoff_timestamp).await {

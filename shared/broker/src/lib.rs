@@ -22,6 +22,14 @@ const DEFAULT_REDIS_POOL_RECYCLE_TIMEOUT_SECS: u64 = 3;
 
 const TRACKING_SHARDS: u64 = 64;
 
+/// Current Unix time in whole seconds, the unit used for stream activity tracking.
+pub fn unix_timestamp() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system clock is before the Unix epoch")
+        .as_secs() as i64
+}
+
 fn tracking_shard_key(key: &StreamKey) -> String {
     let shard = xxh3_64(key.as_redis_key().as_bytes()) % TRACKING_SHARDS;
     format!("{}:{{{}}}", STREAM_TIMESTAMPS, shard)

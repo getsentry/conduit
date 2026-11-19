@@ -70,7 +70,6 @@ pub fn validate_token(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use jsonwebtoken::{EncodingKey, Header, encode};
     use rsa::pkcs1::{EncodeRsaPrivateKey, LineEnding};
     use rsa::pkcs8::EncodePublicKey;
@@ -114,7 +113,7 @@ mod tests {
             channel_id,
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
 
@@ -138,7 +137,7 @@ mod tests {
             channel_id,
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() - 3600) as usize, // 1 hour ago
+            exp: (broker::unix_timestamp() - 3600) as usize, // 1 hour ago
         };
         let token = create_test_token(&claims, private_key);
 
@@ -159,7 +158,7 @@ mod tests {
             channel_id,
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
 
@@ -183,7 +182,7 @@ mod tests {
             channel_id,
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
 
@@ -226,7 +225,7 @@ mod tests {
             channel_id,
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
 
@@ -249,7 +248,7 @@ mod tests {
             channel_id,
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
         let result = validate_token(&token, org_id, channel_id, public_key, "invalid_iss", aud);
@@ -271,7 +270,7 @@ mod tests {
             channel_id,
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key);
         let result = validate_token(&token, org_id, channel_id, public_key, iss, "invalid_aud");
@@ -295,7 +294,7 @@ mod tests {
             channel_id,
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
         let token = create_test_token(&claims, private_key1);
 
@@ -319,7 +318,7 @@ mod tests {
             channel_id,
             iss: iss.to_string(),
             aud: aud.to_string(),
-            exp: (Utc::now().timestamp() + 3600) as usize,
+            exp: (broker::unix_timestamp() + 3600) as usize,
         };
 
         let key = EncodingKey::from_secret("secret".as_ref());

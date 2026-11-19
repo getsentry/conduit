@@ -13,7 +13,6 @@ anyhow = { workspace = true }
 async-stream = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }
-chrono = { workspace = true }
 dotenvy = { workspace = true }
 elegant-departure = { workspace = true }
 futures-util = { workspace = true }
