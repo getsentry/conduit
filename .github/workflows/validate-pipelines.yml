@@ -56,7 +56,7 @@ jobs:
           token_format: 'id_token'
           id_token_audience: '610575311308-9bsjtgqg4jm01mt058rncpopujgk3627.apps.googleusercontent.com'
           id_token_include_email: true
-      - uses: getsentry/action-gocd-jsonnet@3aec6fd54ac8d2fecfe700360f5d020e6902ba2d # v1
+      - uses: getsentry/action-gocd-jsonnet@2a32414fa9e58a46d1afea9cbfa7b77a928678e2 # v1
         with:
           jb-install: true
           jsonnet-dir: gocd/templates
