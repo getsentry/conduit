@@ -15,7 +15,7 @@ gocd: ## Build GoCD pipelines
 check: ## Run every quality gate (CI runs this)
 	cargo fmt --all -- --check
 	cargo clippy --workspace --all-features --tests -- -D clippy::all
-	pre-commit run --all-files
+	prek run --all-files
 .PHONY: check
 
 fix: ## Run safe autofixes
