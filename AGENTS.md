@@ -6,10 +6,10 @@ monitoring), deployed via GoCD pipelines generated from jsonnet.
 
 ## Quality gates
 
-`make check` runs every quality gate (fmt, clippy, and all pre-commit hooks:
+`make check` runs every quality gate (fmt, clippy, and all prek hooks:
 cargo-machete, cargo-deny, typos, rumdl, hadolint, shellcheck, jactionlint,
 agnix). It must pass before a change is done. CI runs the same command, and
-pre-commit installs the pinned tool versions so local and CI toolchains match.
+prek installs the pinned tool versions so local and CI toolchains match.
 `make fix` applies the safe autofixes.
 
 ## Generated files
