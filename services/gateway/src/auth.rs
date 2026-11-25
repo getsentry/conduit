@@ -321,7 +321,7 @@ mod tests {
             exp: (broker::unix_timestamp() + 3600) as usize,
         };
 
-        let key = EncodingKey::from_secret("secret".as_ref());
+        let key = EncodingKey::from_secret("secret".as_ref()).unwrap();
         let token = encode(&Header::new(jsonwebtoken::Algorithm::HS256), &claims, &key).unwrap();
 
         let result = validate_token(&token, org_id, channel_id, public_key, iss, aud);
