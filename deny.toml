@@ -13,12 +13,6 @@ ignore = [
     # (public-key operation); the vulnerable decryption path is not used.
     # Comes in via jsonwebtoken -> rsa. (review 2027-02-06)
     "RUSTSEC-2023-0071",
-    # Timing variability in crypto-bigint operations intended to be constant
-    # time. No patched release of the 0.5 line; comes in via
-    # jsonwebtoken -> p256/p384 -> elliptic-curve. Same exposure as above:
-    # JWT verification with public keys, not secret-key operations.
-    # (review 2027-02-06)
-    "RUSTSEC-2026-0387",
 ]
 
 [licenses]

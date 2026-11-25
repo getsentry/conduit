@@ -25,7 +25,8 @@ pub fn validate_token(
     expected_issuer: &str,
     expected_audience: &str,
 ) -> Result<Claims, JwtValidationError> {
-    let key = DecodingKey::from_secret(secret);
+    let key = DecodingKey::from_secret(secret)
+        .map_err(|e| JwtValidationError::ValidationFailed(e.to_string()))?;
     let mut validation = Validation::new(Algorithm::HS256);
     validation.set_issuer(&[expected_issuer]);
     validation.set_audience(&[expected_audience]);
@@ -44,7 +45,7 @@ mod tests {
     use jsonwebtoken::{EncodingKey, Header, encode};
 
     fn create_test_token(claims: &Claims, secret: &[u8]) -> String {
-        let key = EncodingKey::from_secret(secret);
+        let key = EncodingKey::from_secret(secret).unwrap();
         encode(&Header::new(Algorithm::HS256), claims, &key).unwrap()
     }
 
